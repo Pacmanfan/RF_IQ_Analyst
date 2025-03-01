@@ -18,7 +18,7 @@ LIBS += -L/opt/intel/compilers_and_libraries_2017.4.196/linux/ipp/lib/intel64/
 LIBS += -lboost_system -lfftw3f -lz
 LIBS += -lopencv_core -lopencv_imgproc -lopencv_highgui -lasound -lopencv_photo # openCV
 
-LIBS += -lmarblewidget-qt5 # marble mapping
+#LIBS += -lmarblewidget-qt5 # marble mapping
 LIBS += -lliquid
 
 

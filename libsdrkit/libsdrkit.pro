@@ -241,7 +241,6 @@ HEADERS += libsdrkit.h \
     fft_ipp.h \
     iq_32.h \
     iq_u8.h \
-    qcustomplot_copy.cpp_saved \
     resampler_polyphase_ipp_ff.h \
     sampleindexer.h \
     peak_detector.h \

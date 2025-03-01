@@ -10,7 +10,10 @@
 #include <QTime>
 #include <sys/types.h>
 #include <dirent.h>
+//#include <errno.h>
+//#include <vector>
 #include <string>
+//#include <iostream>
 #include <sys/stat.h>
 #include <sys/statfs.h>
 #include <QSettings>
@@ -18,6 +21,7 @@
 #include <sampleindexer.h>
 #include <dlgprogress.h>
 #include "ftmarker.h"
+//#include "cnpy.h"
 #include <feature_detector.h>
 #include <fft_filter.h>
 #include <signalsource.h>
@@ -31,7 +35,7 @@
 #include "dlgconfig.h"
 #include "sigtuner.h"
 #include "frmhelp.h"
-#if (USE_MARBLE == 1)
+/*
 #include <marble/MarbleWidget.h>
 #include <marble/PositionProviderPlugin.h>
 #include <marble/MarbleModel.h>
@@ -39,8 +43,7 @@
 #include <marble/GeoDataPlacemark.h>
 #include <marble/GeoDataDocument.h>
 #include <marble/GeoDataTreeModel.h>
-using namespace Marble;
-#endif
+*/
 #include "signalstreamscanner.h"
 #include <dlgsignaldetector.h>
 //#include <retrodf.h>
@@ -48,7 +51,7 @@ using namespace Marble;
 
 static const QString ANALYST_VERSION  = "1.0.0.7";
 
-
+//using namespace Marble;
 //using namespace cnpy;
 
 #define MIN_RANGE .2 // 200 Khz
@@ -77,9 +80,8 @@ static float *idata = nullptr; // the current timeseries window of data of lengt
 static long iqdatalen = 0; // the array length of idata
 static long _periodsamples = 1000;
 
-#if (USE_MARBLE == 1)
-static GeoDataPlacemark *cur_location;//
-#endif
+//static GeoDataPlacemark *cur_location;//
+
 // which streams we're importing
 QVRT_FileInfo qvrt_fileinfo;
 static StreamInfo ipo;
@@ -961,6 +963,7 @@ void MainWindow::onMergeMarkers()
 
 void MainWindow::onPerfomRetroDF(ftmarker *mrk)
 {
+    Q_UNUSED(mrk)
     /*
     if(!m_retrodf.open(ipo.name.c_str()))
         return; // fail silently
@@ -1582,13 +1585,12 @@ void MainWindow::on_cmdHelp_clicked()
 }
 void MainWindow::SetupMapping()
 {
+    ui->wgtMapDoc->setVisible(false);
+    /*
     mapWidget = ui->wgtMapDoc;
-    mapWidget->setVisible(showMap);
-
-#if (USE_MARBLE == 1)
     // Load the OpenStreetMap map
     mapWidget->setMapThemeId("earth/openstreetmap/openstreetmap.dgml");
-
+    mapWidget->setVisible(showMap);
     mapWidget->centerOn (-77.035965, 38.897832);
     mapWidget->setZoom(2500);
 
@@ -1600,12 +1602,13 @@ void MainWindow::SetupMapping()
 
     // Add the document to MarbleWidget's tree model
     mapWidget->model()->treeModel()->addDocument( document );
-#endif
+*/
 }
 
 void MainWindow::on_chkMap_stateChanged(int arg1)
 {
-#if (USE_MARBLE == 1)
+    Q_UNUSED(arg1)
+    /*
     static bool sv_const;
     static bool sv_fft;
     static bool sv_waterfall;
@@ -1644,7 +1647,7 @@ void MainWindow::on_chkMap_stateChanged(int arg1)
     on_chkShowWaterfall_clicked();
     on_chkShowScope_clicked();
     //now the real trick is to get the visibility of everything else, and hide it
-#endif
+*/
 }
 
 

@@ -16,14 +16,9 @@
 #include <wgt_waterfall.h>
 #include <wgt_marker_table.h>
 #include <iqdemodplayer.h>
+//#include <marble/MarbleWidget.h>
 
-#define USE_MARBLE 0
-#if (USE_MARBLE == 1)
-#include <marble/MarbleWidget.h>
-using namespace Marble;
-#endif
-
-
+//using namespace Marble;
 
 
 namespace Ui {
@@ -47,11 +42,8 @@ public:
     wgt_marker_table *markertable;
     QConstellationPlot * plotConstellation;
     frmImportOptions *frmimport;
-#if (USE_MARBLE == 1)
-    MarbleWidget *mapWidget;
-#else
-    QWidget *mapWidget;
-#endif
+    //MarbleWidget *mapWidget;
+
     void UpdateScopePlot();
     void UpdateTunerTimeSeriesData();
     void InitializeFFT();

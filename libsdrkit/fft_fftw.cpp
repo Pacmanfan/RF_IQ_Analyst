@@ -1,6 +1,5 @@
 #include "fft_fftw.h"
 #include <cstring>
-#include <cstdint>
 
 fft_fftw::fft_fftw()
 {
