@@ -1,0 +1,22 @@
+This library is a collection of code that I've developed from several previous applicaitons
+Instead of simply copying the code from project to project, this is my attempt
+to formalize it to better carry it forward
+
+
+Dependencies:
+LiquidSDR
+QVRT_Tool
+OpenCV
+QT
+Intel performance primitives
+
+
+We need some sort of library class / object that can:
+Take a ftmarker, input filename and output file name
+Resample and filter on the FT marker and put the info in a new file
+use the output file name store meta-data
+
+targets for ipp replacement:
+resampler
+resampler_arb
+resampler_ff

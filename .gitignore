@@ -90,3 +90,7 @@ Analyst/ui_wgt_waterfall.h
 Analyst/ui_wgtclassifier.h
 
 *.so
+
+.qtc_clangd/.cache/clangd/index/
+
+.qtc_clangd/

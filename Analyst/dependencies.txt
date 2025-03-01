@@ -1,7 +1,0 @@
-Analyst is dependent on the following projects:
-
-http://playmaker-git/Prototyping/libsdrkit
-http://playmaker-git/Prototyping/qvrt_tool
-OpenCV
-FFTW3 - http://www.fftw.org/
-liquidSDR - https://liquidsdr.org/

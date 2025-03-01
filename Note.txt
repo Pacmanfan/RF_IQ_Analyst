@@ -1,0 +1,3 @@
+This *should be the complete source code for Analyst,
+This needs to get cleaned up a bit before posting to github
+

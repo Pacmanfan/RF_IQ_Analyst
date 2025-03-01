@@ -1,0 +1,19 @@
+
+This is a utility application for QVRT files
+
+Functions:
+Statistics
+    #of streams
+    #of packets per stream
+    Frequency and bandwidth information
+    total number of samples
+    IQ samples per IF context data packet
+    total play time
+
+Split QVRT?
+
+options:
+-f <QVRT filename>
+-i General information - # of streams, Frequency and bandwidth information
+-s specify stream ID (1 or 2) generally [default is 1 - Tuner A]
+-d calculate delta time between IF context packets

@@ -1,0 +1,6 @@
+SCMBranch=QRC
+SCMRepository=QRC/WBT/Software Assembly/Apps/QVRT_Tool/lib/include/rapidjson/error
+SCMMainlineUUID={97fbc0c9-f27f-4fdb-91a6-e1363c612afb}
+SCMBranchRepositoryID=574318
+en.h;91072002;1;1517341522;|206961|500623
+error.h;4279527456;1;1517341522;|206962|500624

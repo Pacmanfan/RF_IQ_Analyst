@@ -1,0 +1,413 @@
+#include "ftmarker.h"
+#include <algorithm>
+using namespace std;
+static int markercnt = 0;
+ftmarker::ftmarker()
+{
+    lowFreqLineFFT = 0;
+    highFreqLineFFT = 0;
+    CenterFreqLineFFT = 0;
+    lowFreqLineWaterfall = 0;
+    highFreqLineWaterfall = 0;
+    CenterFreqLineWaterfall     = 0;
+
+    lowTimeLineWaterfall = 0;
+    highTimeLineWaterfall = 0;
+    m_waterrect = 0;
+
+    m_ms = eMV_None;
+    Sel_lowF = -1.0f;
+    Sel_highF = -1.0f;
+    Sel_lowT = -1;
+    Sel_highT = -1;
+    m_Time_ExtLow = false;
+    m_Time_ExtHigh = false;
+
+    m_fft = 0;
+    m_waterfall = 0;
+    m_name = "Marker " + QString::number(markercnt++);
+}
+
+void ftmarker::SetVisible(bool val)
+{
+    lowFreqLineFFT->setVisible(val);
+    highFreqLineFFT->setVisible(val);
+    CenterFreqLineFFT->setVisible(val);
+    lowFreqLineWaterfall->setVisible(val);
+    highFreqLineWaterfall->setVisible(val);
+    CenterFreqLineWaterfall->setVisible(val);
+    lowTimeLineWaterfall->setVisible(val);
+    highTimeLineWaterfall->setVisible(val);
+    if(m_waterrect)
+        m_waterrect->setVisible(val);
+}
+
+QString ftmarker::toString()
+{
+    QString ret;
+    //ret = "FLow: " + QString::number(Sel_lowF,'g',3) + ",";
+    //ret += "FHigh: " + QString::number(Sel_highF,'g',3) + ",";
+    ret = "FT BW: " + QString::number(BW(),'f',3) + ",";
+    ret += "FT Dur: " + QString::number(Duration(),'f',3);
+    return ret;
+}
+
+void ftmarker::Reset()
+{
+    Sel_lowF = -1.0f;
+    Sel_highF = -1.0f;
+}
+
+void ftmarker::UnselectAll()
+{
+    lowFreqLineFFT->setSelected(false);
+    highFreqLineFFT->setSelected(false);
+    CenterFreqLineFFT->setSelected(false);
+    lowFreqLineWaterfall->setSelected(false);
+    highFreqLineWaterfall->setSelected(false);
+    CenterFreqLineWaterfall->setSelected(false);
+    m_ms = eMV_None; // reset selection state
+}
+
+
+void ftmarker::Release()
+{
+    if(lowFreqLineFFT)
+    {
+        m_fft->removeItem(lowFreqLineFFT);
+       // delete lowFreqLineFFT;
+        lowFreqLineFFT = 0;
+    }
+    if(highFreqLineFFT)
+    {
+        m_fft->removeItem(highFreqLineFFT);
+       // delete highFreqLineFFT;
+        highFreqLineFFT = 0;
+    }
+    if(CenterFreqLineFFT)
+    {
+        m_fft->removeItem(CenterFreqLineFFT);
+      // delete CenterFreqLineFFT;
+        CenterFreqLineFFT = 0;
+    }
+    if(lowFreqLineWaterfall)
+    {
+        m_waterfall->removeItem(lowFreqLineWaterfall);
+       // delete lowFreqLineWaterfall;
+        lowFreqLineWaterfall = 0;
+    }
+    if(highFreqLineWaterfall)
+    {
+        m_waterfall->removeItem(highFreqLineWaterfall);
+       // delete highFreqLineWaterfall;
+        highFreqLineWaterfall = 0;
+    }
+    if(CenterFreqLineWaterfall)
+    {
+        m_waterfall->removeItem(CenterFreqLineWaterfall);
+       // delete CenterFreqLineWaterfall;
+        CenterFreqLineWaterfall = 0;
+    }
+    if(lowTimeLineWaterfall)
+    {
+        m_waterfall->removeItem(lowTimeLineWaterfall);
+       // delete lowTimeLineWaterfall;
+        lowTimeLineWaterfall = 0;
+    }
+    if(highTimeLineWaterfall)
+    {
+        m_waterfall->removeItem(highTimeLineWaterfall);
+        //delete highTimeLineWaterfall;
+        highTimeLineWaterfall = 0;
+    }
+    if(m_waterrect)
+    {
+        m_waterfall->removeItem(m_waterrect);
+        //delete m_waterrect;
+        m_waterrect = 0;
+    }
+
+}
+void ftmarker::InitRect(QCustomPlot *waterfall,QColor color)
+{
+    m_waterfall = waterfall;
+    m_waterrect = new QCPItemRect(waterfall);   
+    m_waterrect->setPen(QPen(color,2));
+    m_waterrect->setClipAxisRect(waterfall->axisRect());
+    m_waterrect->setSelectable(true);
+    m_waterrect->topLeft->setType(QCPItemPosition::ptPlotCoords);
+    m_waterrect->topLeft->setAxes(waterfall->xAxis, waterfall->yAxis);
+    m_waterrect->bottomRight->setType(QCPItemPosition::ptPlotCoords);
+    m_waterrect->bottomRight->setAxes(waterfall->xAxis, waterfall->yAxis);
+}
+
+void ftmarker::SetSelected(bool val)
+{
+    selected = val;
+    if(selected)
+    {
+        SetColor(QColor(0,0,255));
+    }
+    else
+    {
+        SetColor(QColor(0,255,0));
+    }
+
+}
+void ftmarker::SetColor(QColor clr)
+{
+    m_waterrect->setPen(QPen(clr,2));
+}
+
+void ftmarker::SetupRect(float lowF,float highF, float lowT, float highT)
+{
+    if(m_waterrect == 0)
+        return; // shouldn't get here.
+    Sel_lowF = lowF;
+    Sel_highF = highF;
+    Sel_lowT = lowT;
+    Sel_highT = highT;
+    Sel_centerf = ((highF - lowF)/2) + lowF;
+    float x1,x2,y1,y2;
+    x1 = lowF;
+    x2 = highF;
+    y1 = lowT;
+    y2 = highT;
+
+    if(m_Time_ExtLow)
+    {
+        y1 = -1000000;
+    }
+    if(m_Time_ExtHigh)
+    {
+        y2 = 1000000;
+    }
+
+    m_waterrect->topLeft->setCoords(x1,y1);
+    m_waterrect->bottomRight->setCoords(x2,y2);
+    m_waterrect->setSelectable(true);
+}
+
+void ftmarker::Init(QCustomPlot *plotFFT, QCustomPlot *plotWaterfall)
+{
+    m_waterfall = plotWaterfall;
+    m_fft = plotFFT;
+    CenterFreqLineFFT = new QCPItemStraightLine(plotFFT);
+    CenterFreqLineWaterfall = new QCPItemStraightLine(plotWaterfall);
+
+    lowFreqLineFFT = new QCPItemStraightLine(plotFFT);
+    lowFreqLineWaterfall = new QCPItemStraightLine(plotWaterfall);
+    Sel_lowF = 100;
+
+    SetupLine(lowFreqLineFFT,Sel_lowF,Qt::green,plotFFT);
+    SetupLine(lowFreqLineWaterfall,Sel_lowF,Qt::green,plotWaterfall);
+
+    highFreqLineFFT = new QCPItemStraightLine(plotFFT);
+    highFreqLineWaterfall = new QCPItemStraightLine(plotWaterfall);
+    Sel_highF = 100;
+    Sel_centerf = 100;
+
+    SetupLine(highFreqLineFFT,Sel_highF,Qt::blue,plotFFT);
+    SetupLine(highFreqLineWaterfall,Sel_highF,Qt::blue,plotWaterfall);
+
+    lowTimeLineWaterfall = new QCPItemStraightLine(plotWaterfall);
+    highTimeLineWaterfall = new QCPItemStraightLine(plotWaterfall);
+    Sel_lowT = 0;
+    Sel_highT = 0;
+
+//    SetupHLine(lowTimeLineWaterfall,Sel_lowT/1000.0f,Qt::green,plotWaterfall);
+//    SetupHLine(highTimeLineWaterfall,Sel_highT/1000.0f,Qt::green,plotWaterfall);
+}
+
+//I fear this is incorrect for the waterfall
+void ftmarker::SetupLine(QCPItemStraightLine* line, float xv, QColor color,QCustomPlot *customPlot)
+{
+    line->point1->setType(QCPItemPosition::ptPlotCoords);
+    line->point2->setType(QCPItemPosition::ptPlotCoords);
+    line->point1->setAxes(customPlot->graph(0)->keyAxis(), customPlot->graph(0)->valueAxis());
+    line->point2->setAxes(customPlot->graph(0)->keyAxis(), customPlot->graph(0)->valueAxis());
+    line->point1->setCoords(xv, 0);
+    line->point2->setCoords(xv, -150);
+
+    line->setPen(QPen(color,2));
+    line->setClipAxisRect(customPlot->axisRect());
+    line->setSelectable(true);
+}
+
+void ftmarker::Load(QSettings *settings)
+{
+    Sel_lowF = settings->value("Sel_lowF",0).toDouble();
+    Sel_highF = settings->value("Sel_highF",0).toDouble();
+    Sel_lowT = settings->value("Sel_lowT",0).toDouble();
+    Sel_highT = settings->value("Sel_highT",0).toDouble();
+    m_Time_ExtLow = settings->value("m_Time_ExtLow",false).toBool();
+    m_Time_ExtHigh = settings->value("m_Time_ExtHigh",false).toBool();
+    m_name = settings->value("Name",m_name).toString();
+    m_tags = settings->value("Tags",m_tags).toString();
+    Sel_centerf = Sel_highF - Sel_lowF;
+
+}
+
+
+void ftmarker::Save(QSettings *settings)
+{
+    settings->setValue("Sel_lowF",Sel_lowF);
+    settings->setValue("Sel_highF",Sel_highF);
+    settings->setValue("Sel_lowT",Sel_lowT);
+    settings->setValue("Sel_highT",Sel_highT);
+    settings->setValue("m_Time_ExtLow",m_Time_ExtLow);
+    settings->setValue("m_Time_ExtHigh",m_Time_ExtHigh);
+    settings->setValue("Name",m_name);
+    settings->setValue("Tags",m_tags);
+}
+
+void ftmarker::SetupHLine(QCPItemLine* line,float xlow, float xhigh, float yv, QColor color,QCustomPlot *plotFFT)
+{
+    line->start->setType(QCPItemPosition::ptPlotCoords);
+    line->end->setType(QCPItemPosition::ptPlotCoords);
+    line->start->setAxes(plotFFT->graph(0)->keyAxis(), plotFFT->graph(0)->valueAxis());
+    line->end->setAxes(plotFFT->graph(0)->keyAxis(), plotFFT->graph(0)->valueAxis());
+
+   // printf("MainWindow::SetupHLine %f %f\r\n",xlow,xhigh);
+    line->start->setCoords(xlow, yv);
+    line->end->setCoords(xhigh, yv);
+
+    line->setPen(QPen(color,2));
+    line->setClipAxisRect(plotFFT->axisRect());
+   // line->setSelectable(true);
+
+}
+
+
+void freq_markers::Clear()
+{
+    for(int c = 0 ; c< m_markers.size(); c++)
+    {
+        ftmarker *ftm = m_markers[c];
+        ftm->Release();
+    }
+    m_markers.clear();
+}
+
+void freq_markers::Load(QSettings *settings)
+{
+    int nentries;
+    nentries = settings->beginReadArray("freq_markers");
+    for(int c= 0; c< nentries; c++)
+    {
+        settings->setArrayIndex(c);
+        ftmarker *fm = new ftmarker();
+        fm->Load(settings);
+        m_markers.push_back(fm);
+    }
+    settings->endArray();
+}
+
+
+void freq_markers::Save(QSettings *settings)
+{
+    int nentries = m_markers.size();
+    settings->beginWriteArray("freq_markers",nentries);
+    for(int c = 0; c < m_markers.size(); c++ )
+    {
+        settings->setArrayIndex(c);
+        m_markers.at(c)->Save(settings);
+    }
+    settings->endArray();
+}
+
+freq_markers::freq_markers(QObject *parent)
+{
+
+}
+
+bool freq_markers::Load(char *fname)
+{
+    QSettings settings(fname);
+    Load(&settings);
+    return true;
+}
+
+bool freq_markers::Save(char *fname)
+{
+    QSettings settings(fname);
+    Save(&settings);
+    return true;
+}
+
+
+void freq_markers::AddMarker(ftmarker * mrk)
+{
+    m_markers.append(mrk);
+}
+
+void freq_markers::UnselectAll()
+{
+    for(int c = 0 ; c< m_markers.size(); c++)
+    {
+        ftmarker *ftm = m_markers[c];
+        ftm->SetSelected(false);
+    }
+}
+
+bool valueInRange(float value, float min, float max)
+{
+    if(max < min)
+        printf("damn\r\n");
+
+    return (value >= min) && (value <= max);
+}
+
+bool rectOverlap(QCPItemRect *A, QCPItemRect *B)
+{
+    float AX,BX,AY,BY;
+    float AW,BW,AH,BH;
+    float BX2,BY2,AX2,AY2;
+    AX = A->topLeft->coords().x();
+    AX2 = A->bottomRight->coords().x();
+    if(AX2 < AX)swap(AX,AX2);
+
+    AW = AX2 - AX;
+
+    AY = A->topLeft->coords().y();
+    AY2 = A->bottomRight->coords().y();
+    if(AY2 < AY)swap(AY,AY2);
+
+    AH = AY2-AY;
+
+    BX = B->topLeft->coords().x();
+    BX2 = B->bottomRight->coords().x();
+    if(BX2 < BX)swap(BX,BX2);
+    BW = BX2 - BX;
+
+    BY = B->topLeft->coords().y();
+    BY2 = B->bottomRight->coords().y();
+    if(BY2 < BY)swap(BY,BY2);
+    BH = BY2 - BY;
+
+
+
+    bool xOverlap = valueInRange(AX, BX, BX + BW) ||
+                    valueInRange(BX, AX, AX + AW);
+
+    bool yOverlap = valueInRange(AY, BY, BY + BH) ||
+                    valueInRange(BY, AY, AY + AH);
+
+    return xOverlap && yOverlap;
+}
+
+
+QVector<ftmarker *> freq_markers::Intersects(ftmarker * mrk)
+{
+    QVector<ftmarker *> ret;
+    for(int c = 0 ; c< m_markers.size(); c++)
+    {
+        ftmarker *ftm = m_markers[c];
+        if(rectOverlap(mrk->m_waterrect,ftm->m_waterrect))
+        {
+            ret.append(ftm);
+        }
+    }
+    return ret;
+}
+

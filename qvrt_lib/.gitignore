@@ -1,0 +1,56 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+Makefile
+
+qvrt_lib.pro.user.a4fae24.4.10-pre1
+
+qvrt_util/__pycache__/
+
+*.stash
+
+qvrt_lib.pro.user.8919a89
+
+qvrt_test/Makefile.Debug
+
+qvrt_test/Makefile.Release
+
+qvrt_util/Makefile.Debug
+
+qvrt_util/Makefile.Release
+
+qvrt_util/debug/qvrt_util.pdb
+
+qvrt_lib.pro.user
+
+qvrt_test/qvrt_test
