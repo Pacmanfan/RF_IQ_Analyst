@@ -1,0 +1,7 @@
+relies on:
+https://github.com/akontsevich/WidgetBox
+
+http://playmaker-git/Prototyping/qvrt_tool
+
+http://playmaker-git/Prototyping/libsdrkit
+

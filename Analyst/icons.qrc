@@ -1,0 +1,21 @@
+<RCC>
+    <qresource prefix="/icons">
+        <file alias="add">icons/add.png</file>
+        <file alias="analyst">icons/analyst-512.png</file>
+        <file alias="play">icons/blueplay.jpg</file>
+        <file alias="stop1">icons/bluestop1.jpg</file>
+        <file alias="stop2">icons/bluestop2.jpg</file>
+        <file alias="close">icons/close.png</file>
+        <file alias="down1">icons/down1.png</file>
+        <file alias="down2">icons/down2.png</file>
+        <file alias="downsmall">icons/downsmall.png</file>
+        <file alias="load">icons/load.png</file>
+        <file alias="minus">icons/minus.png</file>
+        <file alias="settings">icons/Settings-icon.png</file>
+        <file alias="soundsettings">icons/Settings-Sounds-icon.png</file>
+        <file alias="up1">icons/up1.png</file>
+        <file alias="up2">icons/up2.png</file>
+        <file alias="upsmall">icons/upsmall.png</file>
+        <file alias="help">icons/Help.png</file>
+    </qresource>
+</RCC>

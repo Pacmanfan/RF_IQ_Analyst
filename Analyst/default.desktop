@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Analyst
+Exec=AppRun %F
+Icon=Analyst
+Comment=Analyst Application
+Terminal=true

@@ -1,0 +1,282 @@
+
+
+Notes on Analyst:
+-Analyst is the new Carver
+General purpose tool to analyze signals
+Can
+
+QVRT support
+(done)16T support
+
+I need to move towards automatic signal classification
+
+    -OpenCV detection of features (Done)
+    -Burst detector of IQ or FFT
+    -Identify signals and bursts
+        -narrow band peak detection
+        -wide band signal detection
+        -short burst detection
+        -detect CF, BW ,start and stop times
+     -Feeding ML alg with filtered IQ or FFT data
+        -Training new classifiers with data
+        -running data through classifiers to see what it is
+
+Built-in decoders and demodulators
+    AM
+    FM (narrow and wide)
+    P25 , DMR, X2TDMA, etc...
+    GSM, CDMA, WCDMA, LTE
+    Wifi, BT
+
+FPGA acceleration for filtering, resampling, etc...
+
+
+(Done) Show detected features on screen.
+
+(Done) Export QVRT and 16T files
+(Done)Center on a selection
+(Done)Filter on selection
+(Done)Export selection to file
+(Done)Resampler testing and integration into export
+Work on decoders! ^
+
+
+Selections:
+    (Done) Double click to select rectangle
+    (Done) press delete to delete current selection
+
+
+Analyst needs to have a plugin system!!
+Can Analyst run native GNURadio graphs?!??!?!!??!!?
+Do EEEETT!
+simply start a python GNURadio gragh as a process
+redirect I/O
+
+Start to support demodulation of bits
+    First step - allow selection on time window
+    Allow division of time window to show samples per bit
+
+
+Plugins can have GUIs
+    Config GUI (Done)
+        persistant ()
+    floating window GUI
+    Tags (Done)
+    Specify outputs
+        audio (Done)
+        file
+        data type
+        tags on stream
+
+Plugins can be multiply instantiated
+
+
+
+(In Progress - ) Analyst should have a well defined processing chain that can be load and saved
+and re-arranged -
+
+Similar / identical to GNURadio
+    Leverage Gnuradio?
+The plugins can be modular things that encompass many samller processing on the data.
+    plugins can have displays
+GUI display for creating processing graph
+using flow graphs
+
+
+
+So, in order to listen to audio like FM, a few things need to happen.
+-FM playback plugin? built in?
+-resampler / filter
+Generically, we need a way to play back a signal into a demodulator
+We can leverage the work already done with markers to specify the bandwidth, cf, etc
+We might be able to use the marker tags to find the right decoder!!
+    I already did this in PTT!
+
+Freq Hopping Burst detector
+-Plugin for Analyst
+-Does FFT and energy detection to find bursts
+-Makes Markers that are imported in Analyst
+-Can work on Live streams
+-Analst can review them to determine configuration for jammer
+
+-Use to find center freqs
+-Determine diffent freq-hopping parameters
+-Create configuration for jammer
+-build jammer file
+-Retest on drone
+
+
+A plugin to determine markers for all signals in a file
+iterate through all IQ and perform FFT
+-use peak detector to find narrow signals
+-plateau detectors?
+- use averaged FFT data
+once CF and BW is determined, apply filters and use level detectors to determine exact start and stop times for accurate durations
+
+
+
+We might want to create a 'SigApp' class that contains things like the fft_builder, fft_creator, fft_hist
+access to the GUI, etc.
+This way, we can expose these through the class and use it as an API interface for the plugins
+
+Make the FFT, Scope and Waterfall into widgets
+
+Have a stream process object
+-Is used to process IQ data through a stream
+- can wire blocks / decoders / filters / resamplers / etc into a chain
+- can send data out to a display? Or should the Display have a tag where it's getting it's data from?
+
+
+So, the idea here is that apps like Analyst can define multiple stream processes
+A stream process can do something to the IQ data through items Like Stream Blocks,
+This is all kinda like GNURadio, but we have our own system,
+kinda like the plugin system - maybe be part of the plugin system with defineable I/O signatures
+
+( IQ Source ) -> (filter / resample) -> (demodulate) -> (display )
+
+
+A tuner is an extension of a marker
+it can tune to a CF of a larger signal and act as a DDC
+and it can additonally resample and filter
+
+The output of a tuner stream
+
+
+
+A IQStream represents an IQ source
+{
+    file source / live source
+    Marker List - common for all derived streams
+    Stream Descriptor (CF, BW, start / stop times , file it loaded from)
+
+    SignalTuner List (List of tuners pointing to places in the stream based on markers)
+        each tuner can have a processing chain like: ( IQ Source ) -> (filter / resample) -> (demodulate) -> (display )
+                                                                      (fft builder - named stream)
+
+
+}
+
+A SigApp is
+{
+    List of SignalStreams
+}
+
+
+This is getting all confused,
+
+I want to be able to open a stream to an IQ source, that much is certain.
+
+I also want to be able to have random access to the data (file sources) or buffered live data
+
+
+
+
+
+The FFT_Builder and FFT_Hist objects go hand in hand.
+
+The only reason to use a FFT_Builder is to fill  out a FFT_Hist
+
+FFT_hist can also be filled with live data from an FFT source (wbt tuner or fft calc).
+
+FFT_Builder requires a FFT_Hist
+FFT_Builder requires a FFT_Calc
+
+FFT_Hist does not require a FFT_Builder
+
+
+
+Should I have my own 'connect' functions to wire together blocks?
+Should I have my own defined input / output signatures like GNURadio?
+
+Should it be compatible with GNURadio?
+
+
+what would it look like?
+
+
+IQSource *iqs = new IQSource("somefile.qvrt",STREAM_1);
+
+float rate = iqs->Rate();
+float cf = iqs->CF();
+
+IQTuner *iqt = new IQTuner() // DDC /filter/ resampler
+
+iqt->setInputRate(rate);
+iqt->setInputCF(cf);
+
+iqt->setOutputRate(rate / 2);
+iqt->setInputCF(cf);
+
+IQDemodFM *iqdfm = new IQDemodFM();
+
+StreamConnect(iqs,1,iqt,1);
+StreamConnect(iqt,1,iqdfm,1); // float output
+
+
+// abstract base class for all items that can be connected
+class StreamItem
+{
+    long Process([insig],[outsig],int numitems) = 0; // abstract item
+
+}
+
+// this class forms a connection from streamitem to streamitem
+class StreamConnection // this is the link in the chain
+{
+public:
+    StreamConnection(StreamItem *src, int _srcidx, StreamItem * dst, int _dstidx);
+    StreamItem *source;
+    StreamItem *dest;
+    int srcidx; // the index of the output of the source
+    int dstidx; // the index of the input of the destination
+}
+
+class ProcessStream // this is the chain containing links
+{
+    public:
+    bool StreamConnect(StreamItem *src, int _srcidx, StreamItem * dst, int _dstidx) // creates a new StreamConnection and adds it to the m_links
+    private:
+    QVector<StreamConnection *> m_links;
+}
+
+An app has streams
+Each stream can have a name, tags,
+Streams have Tuners, tapping into them
+Each Tuner has a chain
+Each link in the chain is a processing step that can be applied to the stream
+
+Plugins are really just chains added to the app
+
+
+
+App divided in rows?
+3 rows? 4 rows?
+Columns for widget controls?
+
+
+-------------------------------------
+|          |            |           |
+|-----------------------------------|
+|                       |           |
+|-----------------------------------|
+|                 |                 |
+|-----------------------------------|
+|                 |                 |
+-------------------------------------
+
+
+
+
+Stream 1 (named)
+    source 1
+    tuner 1
+        FM demods (named data out) data1
+    tuner 2
+        GFSK demod (named data out) data2
+
+displays
+displays
+
+
+
+Marker table widget
