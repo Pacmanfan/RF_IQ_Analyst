@@ -6,3 +6,5 @@ Frequency and time pan /scroll/ zoom through the IQ data in time and frequency s
 apply different detectors, demodulators, decoders, and classifiers.
 View output on Marble map
 Support basic DF geolocation
+Show FM demodulated time series.
+Resample IQ data to other re-tuned filtered bandrates.
