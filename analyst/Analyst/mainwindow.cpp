@@ -10,10 +10,7 @@
 #include <QTime>
 #include <sys/types.h>
 #include <dirent.h>
-//#include <errno.h>
-//#include <vector>
 #include <string>
-//#include <iostream>
 #include <sys/stat.h>
 #include <sys/statfs.h>
 #include <QSettings>
@@ -21,7 +18,6 @@
 #include <sampleindexer.h>
 #include <dlgprogress.h>
 #include "ftmarker.h"
-//#include "cnpy.h"
 #include <feature_detector.h>
 #include <fft_filter.h>
 #include <signalsource.h>
@@ -32,27 +28,12 @@
 #include <QVBoxLayout>
 #include <iqdemodplayer.h>
 #include <audio_util.h>
-#include "dlgconfig.h"
 #include "sigtuner.h"
-#include "frmhelp.h"
-/*
-#include <marble/MarbleWidget.h>
-#include <marble/PositionProviderPlugin.h>
-#include <marble/MarbleModel.h>
-#include <marble/PluginManager.h>
-#include <marble/GeoDataPlacemark.h>
-#include <marble/GeoDataDocument.h>
-#include <marble/GeoDataTreeModel.h>
-*/
+
 #include "signalstreamscanner.h"
 #include <dlgsignaldetector.h>
-//#include <retrodf.h>
-//#include <frmdfworkshop.h>
 
 static const QString ANALYST_VERSION  = "1.0.0.7";
-
-//using namespace Marble;
-//using namespace cnpy;
 
 #define MIN_RANGE .2 // 200 Khz
 #define FILTER_COEF_LEN 57
@@ -69,7 +50,7 @@ static bool showingFFT = true;
 static bool showingconstellation = false;
 static bool showingMarkers = false;
 static bool showingWaterfall = true;
-static bool showMap = false;
+
 
 static bool refreshingGUI = false;
 static bool useWindowFilter = DEF_WINDOW_FILTERING;
@@ -123,8 +104,9 @@ MainWindow::MainWindow(QWidget *parent) :
 {
 
     ui->setupUi(this);
+    //addToolBar()
     setWindowTitle("Analyst " + ANALYST_VERSION);
-    setWindowState(Qt::WindowMaximized);
+   // setWindowState(Qt::WindowMaximized);
 
     dlgprg = 0;
     //m_DFWS = new frmDFWorkshop(this);
@@ -317,6 +299,7 @@ void MainWindow::InitializeScope()
     gr = plotScope->AddGraph("FM demod",Qt::green); // general purpose
     gr->setVisible(false);
     gr = plotScope->AddGraph("phase",Qt::blue); // phase
+    gr->setVisible(false);
     gr = plotScope->AddGraph("magnitude",Qt::yellow); // phase
     gr->setVisible(false);
     plotScope->AddGraph("I",Qt::red);
@@ -352,7 +335,7 @@ MainWindow::~MainWindow()
     CloseAudio();
 }
 
-void MainWindow::on_cmdLoad_clicked()
+void MainWindow::on_actionLoadFile_triggered()
 {
     QString curdir ;
 
@@ -1339,13 +1322,6 @@ void MainWindow::onSetPeriodSamples(int len)
     UpdateTunerTimeSeriesData();
 }
 
-void MainWindow::on_cmdSettings_clicked()
-{
-    dlgConfig *dlg = new dlgConfig(this);
-    dlg->exec();
-    delete dlg;
-}
-
 
 void MainWindow::on_cmdClearMax_clicked()
 {
@@ -1353,24 +1329,7 @@ void MainWindow::on_cmdClearMax_clicked()
 
 }
 
-void MainWindow::on_chkShowFFT_clicked()
-{
-    showingFFT = ui->chkShowFFT->isChecked();
-    plotFFT->setVisible(showingFFT);
-}
-
-void MainWindow::on_chkShowScope_clicked()
-{
-    //crashing when no data is loaded and scope / constellation is shown.
-    showingscope = ui->chkShowScope->isChecked();
-    if(ipo.SampleRateHz > 0)
-    {
-        UpdateTunerTimeSeriesData();
-        UpdateScopePlot();
-    }
-    ui->wgtScope_Const->setVisible(showingscope | showingconstellation);
-}
-
+/*
 void MainWindow::on_chkShowConstellation_clicked()
 {
     showingconstellation = ui->chkShowConstellation->isChecked();
@@ -1383,8 +1342,8 @@ void MainWindow::on_chkShowConstellation_clicked()
     }
     ui->wgtScope_Const->setVisible(showingscope | showingconstellation);
 }
-
-//To get a value from the FFT tracer and display it as text on the GUI
+*/
+///To get a value from the FFT tracer and display it as text on the GUI
 void MainWindow::OnFreqHighlightFFT(double val)
 {
     ui->lblMOFreq->setText("Frequency : " + QString::number(val) + " MHz");
@@ -1439,11 +1398,6 @@ void MainWindow::on_cmbTool_currentIndexChanged(int index)
     UpdatePluginButtons();
 }
 
-void MainWindow::on_chkMarkers_clicked()
-{
-    showingMarkers = ui->chkMarkers->isChecked();
-    markertable->setVisible(showingMarkers);
-}
 
 void MainWindow::on_cmdDetect_clicked()
 {
@@ -1577,12 +1531,6 @@ void MainWindow::on_cmdClassify_clicked()
     }
 }
 
-void MainWindow::on_cmdHelp_clicked()
-{
-    frmHelp *fhelp = new frmHelp(this);
-    fhelp->exec();
-    delete fhelp;
-}
 void MainWindow::SetupMapping()
 {
     ui->wgtMapDoc->setVisible(false);
@@ -1605,58 +1553,6 @@ void MainWindow::SetupMapping()
 */
 }
 
-void MainWindow::on_chkMap_stateChanged(int arg1)
-{
-    Q_UNUSED(arg1)
-    /*
-    static bool sv_const;
-    static bool sv_fft;
-    static bool sv_waterfall;
-    static bool sv_markers;
-    static bool sv_scope;
-
-    showMap = ui->chkMap->isChecked();
-    mapWidget->setVisible(showMap);
-    if(showMap)
-    {
-        //save all the previous visibilities
-        sv_const = ui->chkShowConstellation->isChecked();
-        sv_fft = ui->chkShowFFT->isChecked();
-        sv_waterfall = ui->chkShowWaterfall->isChecked();
-        sv_markers = ui->chkMarkers->isChecked();
-        sv_scope = ui->chkShowScope->isChecked();
-
-        //now hide them all
-        ui->chkShowConstellation->setChecked(false);
-         ui->chkShowFFT->setChecked(false);
-         ui->chkShowWaterfall->setChecked(false);
-         ui->chkMarkers->setChecked(false);
-         ui->chkShowScope->setChecked(false);
-    }else
-    {
-        //map turning off, restore saved visibilities
-        ui->chkShowConstellation->setChecked(sv_const);
-         ui->chkShowFFT->setChecked(sv_fft);
-         ui->chkShowWaterfall->setChecked(sv_waterfall);
-         ui->chkMarkers->setChecked(sv_markers);
-         ui->chkShowScope->setChecked(sv_scope);
-    }
-    on_chkMarkers_clicked();
-    on_chkShowConstellation_clicked();
-    on_chkShowFFT_clicked();
-    on_chkShowWaterfall_clicked();
-    on_chkShowScope_clicked();
-    //now the real trick is to get the visibility of everything else, and hide it
-*/
-}
-
-
-void MainWindow::on_chkShowWaterfall_clicked()
-{
-    showingWaterfall = ui->chkShowWaterfall->isChecked();
-    ui->wgtWaterfall->setVisible(showingWaterfall);
-    SaveSettings();
-}
 
 void MainWindow::on_cmdEnergyDetect2_clicked()
 {
@@ -1693,3 +1589,38 @@ void MainWindow::on_cmdWorkshop_clicked()
 {
     //m_DFWS->show();
 }
+
+void MainWindow::on_actionWaterfall_triggered()
+{
+    showingWaterfall = !showingWaterfall;
+    ui->wgtWaterfall->setVisible(showingWaterfall);
+    SaveSettings();
+}
+
+
+void MainWindow::on_actionscope_triggered()
+{
+    //crashing when no data is loaded and scope / constellation is shown.
+    showingscope = !showingscope;//ui->chkShowScope->isChecked();
+    if(ipo.SampleRateHz > 0)
+    {
+        UpdateTunerTimeSeriesData();
+        UpdateScopePlot();
+    }
+    ui->wgtScope_Const->setVisible(showingscope | showingconstellation);
+}
+
+
+void MainWindow::on_actionFFT_triggered()
+{
+    showingFFT = !showingFFT;
+    plotFFT->setVisible(showingFFT);
+}
+
+
+void MainWindow::on_actionMarker_triggered()
+{
+    showingMarkers = !showingMarkers;
+    markertable->setVisible(showingMarkers);
+}
+

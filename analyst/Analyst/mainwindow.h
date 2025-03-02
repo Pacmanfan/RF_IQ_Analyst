@@ -119,7 +119,7 @@ public slots:
     void onPerfomRetroDF(ftmarker *mrk);// received a signal from the marker table wiget to start a DF on the indicated marker
 
 private slots:
-    void on_cmdLoad_clicked();
+    //void on_cmdLoad_clicked();
 
     void on_cmbWaterfallScheme_activated(int index);
 
@@ -143,25 +143,23 @@ private slots:
     void on_cmdUp_Small_clicked();
     void on_cmdDown_Small_clicked();
 
-    void on_cmdSettings_clicked();
-
     void on_cmdClearMax_clicked();
-    void on_chkShowFFT_clicked();
-    void on_chkShowScope_clicked();
-    void on_chkShowConstellation_clicked();
+
     void OnFreqHighlightFFT(double val);
     void OnTimeHighlight(double val);
     void OnPanWaterfall(double val);
     void on_cmbTool_currentIndexChanged(int index);
-    void on_chkMarkers_clicked();
     void on_cmdDetect_clicked();
     void on_cmdDecode_clicked();
     void on_cmdClassify_clicked();
-    void on_cmdHelp_clicked();
-    void on_chkMap_stateChanged(int arg1);
-    void on_chkShowWaterfall_clicked();
+
     void on_cmdEnergyDetect2_clicked();
     void on_cmdWorkshop_clicked();
+    void on_actionLoadFile_triggered();
+    void on_actionWaterfall_triggered();
+    void on_actionscope_triggered();
+    void on_actionFFT_triggered();
+    void on_actionMarker_triggered();
 };
 
 #endif // MAINWINDOW_H

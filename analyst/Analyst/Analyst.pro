@@ -25,7 +25,6 @@ LIBS += -lliquid
 SOURCES += main.cpp\
     dlgsignaldetector.cpp \
     dlgstreamoptions.cpp \
-    frmhelp.cpp \
     mainwindow.cpp \
     ctkRangeSlider.cpp \
     dlgprogress.cpp \
@@ -34,7 +33,6 @@ SOURCES += main.cpp\
     wgt_timeeditor.cpp \
     wgtclassifier.cpp \
     dlgnewclassifier.cpp \
-    dlgconfig.cpp \
     qconstellationplot.cpp \
     wgt_scope.cpp \
     wgt_sig_base.cpp \
@@ -50,13 +48,11 @@ HEADERS  += mainwindow.h \
     dlgprogress.h \
     dlgsignaldetector.h \
     dlgstreamoptions.h \
-    frmhelp.h \
     frmimportoptions.h \
     wgt_marker_editor.h \
     wgt_timeeditor.h \
     wgtclassifier.h \
     dlgnewclassifier.h \
-    dlgconfig.h \
     qconstellationplot.h \
     wgt_scope.h \
     wgt_sig_base.h \
@@ -69,14 +65,12 @@ HEADERS  += mainwindow.h \
 FORMS    += mainwindow.ui \
     dlgsignaldetector.ui \
     dlgstreamoptions.ui \
-    frmhelp.ui \
     frmimportoptions.ui \
     dlgprogress.ui \
     wgt_marker_editor.ui \
     wgt_timeeditor.ui \
     wgtclassifier.ui \
     dlgnewclassifier.ui \
-    dlgconfig.ui \
     qconstellationplot.ui \
     wgt_scope.ui \
     wgt_fft.ui \
