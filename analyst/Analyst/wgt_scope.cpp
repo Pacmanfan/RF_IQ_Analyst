@@ -1,6 +1,6 @@
 #include "wgt_scope.h"
 #include "ui_wgt_scope.h"
-#include <leveltrigger.h>
+
 #include <dsp_utils.h>
 
 bool GUIUpdate = false;
@@ -72,11 +72,6 @@ void wgt_Scope::RemoveGraph(QString tracename)
     UpdateGraphTable();
 }
 
-void wgt_Scope::TestAddTrigger()
-{
-    LevelTrigger *lt = new LevelTrigger(plot);
-    lt->setPowerlevel(.25);
-}
 
 void wgt_Scope::SetAvLen(int val)
 {

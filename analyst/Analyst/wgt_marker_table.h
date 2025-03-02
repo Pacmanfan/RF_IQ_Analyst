@@ -38,7 +38,7 @@ signals:
     void onExportMarker(ftmarker *mrk);
     void onMerge();
     void onRemoveAllMarkers();
-    void onStartDF(ftmarker *mrk);// start a direction find on this marker
+
 
 private slots:
     void on_tblMarkers_currentItemChanged(QTableWidgetItem *current, QTableWidgetItem *previous);
@@ -48,7 +48,6 @@ private slots:
     void on_cmdExport_clicked();
     void on_cmdRemoveAll_clicked();
     void on_cmdMerge_clicked();
-    void on_cmdDirectionFind_clicked();
 };
 
 #endif // WGT_MARKER_TABLE_H

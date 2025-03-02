@@ -33,11 +33,9 @@ SOURCES += main.cpp\
     wgt_timeeditor.cpp \
     wgtclassifier.cpp \
     dlgnewclassifier.cpp \
-    qconstellationplot.cpp \
     wgt_scope.cpp \
     wgt_sig_base.cpp \
     wgt_fft.cpp \
-    leveltrigger.cpp \
     wgt_waterfall.cpp \
     audio_util.cpp \
     wgt_marker_table.cpp
@@ -53,11 +51,9 @@ HEADERS  += mainwindow.h \
     wgt_timeeditor.h \
     wgtclassifier.h \
     dlgnewclassifier.h \
-    qconstellationplot.h \
     wgt_scope.h \
     wgt_sig_base.h \
     wgt_fft.h \
-    leveltrigger.h \
     wgt_waterfall.h \
     audio_util.h \
     wgt_marker_table.h
@@ -71,7 +67,6 @@ FORMS    += mainwindow.ui \
     wgt_timeeditor.ui \
     wgtclassifier.ui \
     dlgnewclassifier.ui \
-    qconstellationplot.ui \
     wgt_scope.ui \
     wgt_fft.ui \
     wgt_waterfall.ui \

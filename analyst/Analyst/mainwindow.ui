@@ -1212,9 +1212,6 @@ QSlider {
              <item>
               <widget class="wgt_Scope" name="wgtScope2" native="true"/>
              </item>
-             <item>
-              <widget class="QConstellationPlot" name="wgtConst" native="true"/>
-             </item>
             </layout>
            </widget>
           </item>
@@ -1664,12 +1661,6 @@ QSlider {
    <class>ctkRangeSlider</class>
    <extends>QSlider</extends>
    <header location="global">ctkRangeSlider.h</header>
-  </customwidget>
-  <customwidget>
-   <class>QConstellationPlot</class>
-   <extends>QWidget</extends>
-   <header>qconstellationplot.h</header>
-   <container>1</container>
   </customwidget>
   <customwidget>
    <class>wgt_Scope</class>

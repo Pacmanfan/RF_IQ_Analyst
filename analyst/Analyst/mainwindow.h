@@ -10,7 +10,7 @@
 #include <freq_time_marker.h>
 #include <QQueue>
 #include <frmimportoptions.h>
-#include <qconstellationplot.h>
+
 #include "wgt_scope.h"
 #include <wgt_fft.h>
 #include <wgt_waterfall.h>
@@ -40,7 +40,7 @@ public:
     wgt_FFT   * plotFFT;
     wgt_waterfall *plotWaterfall;
     wgt_marker_table *markertable;
-    QConstellationPlot * plotConstellation;
+    //QConstellationPlot * plotConstellation;
     frmImportOptions *frmimport;
     //MarbleWidget *mapWidget;
 
@@ -48,7 +48,7 @@ public:
     void UpdateTunerTimeSeriesData();
     void InitializeFFT();
     void InitializeScope();
-    void InitializeConstellation();
+    //void InitializeConstellation();
     void UpdateCursorDotPosition(double xCenterIn);
 
     void UpdateSelInfo();

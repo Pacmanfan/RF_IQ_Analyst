@@ -131,7 +131,7 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(plotScope,SIGNAL(Pan(double)),this,SLOT(OnPanWaterfall(double)));
     connect(plotScope,SIGNAL(SetPeriodSamples(int)),this,SLOT(onSetPeriodSamples(int)));
 
-    InitializeConstellation();
+
     ui->sldWaterRange->setMaximumPosition(-30);
     ui->sldWaterRange->setMinimumPosition(-150);
 
@@ -241,10 +241,10 @@ void MainWindow::onTimer()
     {
         UpdateScopePlot();
     }
-    if(showingconstellation == true)
-    {
-        plotConstellation->UpdatePlot(idata,_periodsamples); // replot
-    }
+   // if(showingconstellation == true)
+   // {
+   //    plotConstellation->UpdatePlot(idata,_periodsamples); // replot
+    //}
     UpdatePlaybackTimestamp();
 
     plotWaterfall->plot->replot();
@@ -306,12 +306,6 @@ void MainWindow::InitializeScope()
     plotScope->AddGraph("Q",Qt::blue);
 }
 
-void MainWindow::InitializeConstellation()
-{
-    plotConstellation = ui->wgtConst;
-    plotConstellation->setVisible(showingconstellation);
-
-}
 
 void MainWindow::InitializeFFT()
 {

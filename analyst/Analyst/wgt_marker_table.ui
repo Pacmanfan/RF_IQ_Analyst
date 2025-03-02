@@ -155,19 +155,6 @@
        <string>Merge</string>
       </property>
      </widget>
-     <widget class="QPushButton" name="cmdDirectionFind">
-      <property name="geometry">
-       <rect>
-        <x>20</x>
-        <y>140</y>
-        <width>184</width>
-        <height>27</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>Direction Find</string>
-      </property>
-     </widget>
     </widget>
    </item>
    <item>

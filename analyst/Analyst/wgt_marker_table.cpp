@@ -216,19 +216,3 @@ void wgt_marker_table::on_cmdMerge_clicked()
     emit(onMerge());
 }
 
-void wgt_marker_table::on_cmdDirectionFind_clicked()
-{
-
-    //get the current sleected marker
-    //get the current row
-    int row = ui->tblMarkers->currentRow();
-    if(row == -1)return;
-    if(row >  _markers->m_markers.size())
-        return;
-
-    //get a pointer to the singular selected row
-    ftmarker *mrk = _markers->m_markers.at(row);
-    //raise a signal to tell the main form we're starting a direction find
-    emit(onStartDF(mrk));
-
-}

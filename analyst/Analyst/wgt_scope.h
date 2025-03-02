@@ -45,7 +45,7 @@ public:
     virtual QCPGraph *AddGraph(QString tracename,QColor color); // defaults to the xaxis
     virtual QCPGraph *AddGraph(QString tracename,QCPAxis *axis,QColor color); // add to a specific axis
     virtual void RemoveGraph(QString tracename);
-    void TestAddTrigger();
+    //void TestAddTrigger();
     void SetAvLen(int val);
     void UpdateAv(double minv,double maxv);
     void FindMinMax(float *data , int numsamp);
