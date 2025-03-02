@@ -6,6 +6,9 @@
 #include <srifile.h>
 #include <dlgstreamoptions.h>
 #include <utils.h>
+#include <qvrt_tools.h>
+#include <analystapp.h>
+
 using namespace std;
 
 extern QVRT_FileInfo qvrt_fileinfo;
@@ -18,6 +21,8 @@ double Estimate_Num_Samples(StreamInfo *si)
     double divisor  = 1;
     switch(si->m_format)
     {
+        case eUNK:
+        divisor = 1;
         case eU8:
         case eS8:
         divisor = 2;
@@ -84,7 +89,8 @@ void frmImportOptions::Setup(string filename)
                 fi.suffix().toLower() == "s8" ||
                 fi.suffix().toLower() == "u8" ||
                 fi.suffix().toLower() == "raw" ||
-                fi.suffix().toLower() == "cfile")
+                fi.suffix().toLower() == "cfile" ||
+                fi.suffix().toLower() == "iq")
         {
             //16t/u8/s16 file
             QFileInfo fi(filename.c_str());
@@ -136,10 +142,10 @@ void frmImportOptions::Setup(string filename)
         }
         else if(fi.suffix().toLower() == "qvrt")
         {
-            qvrt_fileinfo.GatherInfo(filename);
-            for(int c= 0 ; c < qvrt_fileinfo.NumStreams(); c++)
+            gApp.qvrt_fileinfo.GatherInfo(filename);
+            for(int c= 0 ; c < gApp.qvrt_fileinfo.NumStreams(); c++)
             {
-                StreamInfo *si = qvrt_fileinfo.GetStreamInfoIndex(c);
+                StreamInfo *si = gApp.qvrt_fileinfo.GetStreamInfoIndex(c);
                 si->valid = true;
                 si->name = filename;
                 m_lstStreams.append(si);

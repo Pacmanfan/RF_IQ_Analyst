@@ -23,6 +23,7 @@ LIBS += -lliquid
 
 
 SOURCES += main.cpp\
+    analystapp.cpp \
     dlgsignaldetector.cpp \
     dlgstreamoptions.cpp \
     mainwindow.cpp \
@@ -41,6 +42,7 @@ SOURCES += main.cpp\
     wgt_marker_table.cpp
 
 HEADERS  += mainwindow.h \
+    analystapp.h \
     ctkPimpl.h \
     ctkRangeSlider.h \
     dlgprogress.h \

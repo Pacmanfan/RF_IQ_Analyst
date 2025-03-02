@@ -100,7 +100,7 @@ enum file_format // format of the data
     eS8, // 2 channel signed 8 bit format
     eU16, // 2 channel unsigned 16 bit format
     eS16, // also the 16T format
-    e32, // 2 channel 32 bit floats (cfile / raw)
+    e32, // 2 channel 32 bit floats (cfile / raw / iq)
     eQVRT,
     eUNK // unknown
 };

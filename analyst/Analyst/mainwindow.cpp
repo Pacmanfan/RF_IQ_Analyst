@@ -14,40 +14,31 @@
 #include <sys/stat.h>
 #include <sys/statfs.h>
 #include <QSettings>
-#include "fft_builder.h"
 #include <sampleindexer.h>
 #include <dlgprogress.h>
-#include "ftmarker.h"
-#include <feature_detector.h>
 #include <fft_filter.h>
 #include <signalsource.h>
-#include <file_resampler.h>
-#include <classifier.h>
-#include "data_exporter.h"
-#include <pluginmanager.h>
 #include <QVBoxLayout>
-#include <iqdemodplayer.h>
 #include <audio_util.h>
-#include "sigtuner.h"
-
+#include <analystapp.h>
 #include "signalstreamscanner.h"
 #include <dlgsignaldetector.h>
 
-static const QString ANALYST_VERSION  = "1.0.0.7";
+#define ANALYST_VERSION  "1.0.0.8"
 
 #define MIN_RANGE .2 // 200 Khz
 #define FILTER_COEF_LEN 57
 #define DEF_WINDOW_FILTERING false
 #define DEF_AUTO_RANGE true // the automatic ranging of the FFT and WATERFALL dbM scale
 #define DEF_WATERFALL_COLORSCHEME 1 // default waterfall colorscheme is "Hot / 1"
+
 void *audiopumpthreadfn(void *param);
 SignalStreamScanner *m_ss_scanner = nullptr;
 dlgSignalDetector *dlgsigdetector = nullptr;
-static ftmarker ss_ftm;
+
 
 static bool showingscope = false;
 static bool showingFFT = true;
-static bool showingconstellation = false;
 static bool showingMarkers = false;
 static bool showingWaterfall = true;
 
@@ -63,24 +54,13 @@ static long _periodsamples = 1000;
 
 //static GeoDataPlacemark *cur_location;//
 
-// which streams we're importing
-QVRT_FileInfo qvrt_fileinfo;
-static StreamInfo ipo;
+
 
 static dlgProgress *dlgprg; // progress dialog box
-
-static SampleIndexer *m_indexer = nullptr; // the indexer into the qvrt file, this provides random access to the IQ sample
-static FFT_Builder *m_builder = nullptr; // this builds the historical view of the waterfall in a FFT_Hist
-static FFT_Hist *fft_hist = nullptr; // An FFT wrapper class that contains the waterfall view, average, max, etc...
 
 QVector<ftmarker *> m_exportlist; // list of markers to export
 QString m_exportpath; // when we're exporting marker, this is the path to use
 double m_exportbwhz; // when exporting, this is the BW to use.
-
-//markers we're using
-static freq_markers m_markers; // the marker manager
-
-SigTuner m_sigtuner; // the default tuner we're using
 
 int gradiantindex = 0; // for the waterfall
 double waterlow = -150,waterhigh = -30;
@@ -88,15 +68,7 @@ bool autowaterrange = DEF_AUTO_RANGE;
 
 static QVector<ftmarker *> selmkrs; // the user-selected markers
 static QString markersfilename;
-static feature_detector feat_detector;
 
-static file_resampler *file_resamp;
-static data_exporter *data_export; // for numpy files
-
-static Classifiers m_classifiers; // machine learning classifiers
-libsdrkitplugins::PluginManager m_plugmgr; // the plugin manager
-static iPluginInterface *iplgSel = nullptr; // currently selected plugin
-static IQDemodPlayer *iqplayer = nullptr;
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -104,16 +76,17 @@ MainWindow::MainWindow(QWidget *parent) :
 {
 
     ui->setupUi(this);
-    //addToolBar()
-    setWindowTitle("Analyst " + ANALYST_VERSION);
+    QString Title = "Analyst ";
+    Title += ANALYST_VERSION;
+    setWindowTitle(Title);
    // setWindowState(Qt::WindowMaximized);
 
     dlgprg = 0;
     //m_DFWS = new frmDFWorkshop(this);
 
-    m_indexer = new SampleIndexer(this);
-    connect(m_indexer,SIGNAL(StartBuildIndex()),this,SLOT(onStartBuildIndex()));
-    connect(m_indexer,SIGNAL(EndBuildIndex()),this,SLOT(onEndBuildIndex()));
+    gApp.m_indexer = new SampleIndexer(this);
+    connect(gApp.m_indexer,SIGNAL(StartBuildIndex()),this,SLOT(onStartBuildIndex()));
+    connect(gApp.m_indexer,SIGNAL(EndBuildIndex()),this,SLOT(onEndBuildIndex()));
 
     _displaytimer = new QTimer(this);
 
@@ -122,7 +95,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
     InitializeFFT();
     plotWaterfall = ui->wgtWaterfall;
-    plotWaterfall->AddTuner(m_sigtuner.Marker());
+    plotWaterfall->AddTuner(gApp.m_sigtuner.Marker());
     connect(plotWaterfall,SIGNAL(OnMarkersSelected(QVector<ftmarker*>)),this,SLOT(OnMarkersSelectedWaterfall(QVector<ftmarker*>)));
     connect(plotWaterfall,SIGNAL(OnMarkerSelected(ftmarker*,bool)),this,SLOT(OnMarkerSelectedWaterfall(ftmarker*,bool)));
     connect(plotWaterfall,SIGNAL(OnDeleteCurrentMarker()),this,SLOT(OnDeleteCurrentMarker()));
@@ -144,13 +117,7 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(plotWaterfall,SIGNAL(OnTimeHighlight(double)),this,SLOT(OnTimeHighlight(double)));
     connect(plotWaterfall,SIGNAL(Pan(double)),this,SLOT(OnPanWaterfall(double)));
 
-    fft_hist = new FFT_Hist();
-
-    m_builder = new FFT_Builder();
-
-    m_builder->SetFFTHist(fft_hist);
-
-    m_builder->SetIndexer(m_indexer);
+    gApp.Intialize();
 
 
     ui->wgtScope_Const->setVisible(false);
@@ -172,31 +139,31 @@ MainWindow::MainWindow(QWidget *parent) :
     LoadSettings();
     //hide a few things for now
 
-    file_resamp = new file_resampler(this);
-    connect(file_resamp,SIGNAL(EndResample()),this,SLOT(onFileResampEnded()));
-    connect(file_resamp,SIGNAL(StartResample()),this,SLOT(onFileSampleStart()));
+    gApp.file_resamp = new file_resampler(this);
+    connect(gApp.file_resamp,SIGNAL(EndResample()),this,SLOT(onFileResampEnded()));
+    connect(gApp.file_resamp,SIGNAL(StartResample()),this,SLOT(onFileSampleStart()));
 
-    data_export = new data_exporter(this);
-    connect(data_export,SIGNAL(EndExport()),this,SLOT(onEndExport()));
-    connect(data_export,SIGNAL(StartExport(ftmarker *)),this,SLOT(onStartExport(ftmarker *)));
+    gApp.data_export = new data_exporter(this);
+    connect(gApp.data_export,SIGNAL(EndExport()),this,SLOT(onEndExport()));
+    connect(gApp.data_export,SIGNAL(StartExport(ftmarker *)),this,SLOT(onStartExport(ftmarker *)));
 
     // ML classifer setup
     QString apppath = QApplication::applicationDirPath();
     QString clfname = apppath + "/classifiers.ini";
-    m_classifiers.Load(clfname); // load the classifiers information    
-    ui->wgtClassifiers->SetClassifiers(&m_classifiers);
+    gApp.m_classifiers.Load(clfname); // load the classifiers information
+    ui->wgtClassifiers->SetClassifiers(&gApp.m_classifiers);
     connect(ui->wgtClassifiers,SIGNAL(StartDataExport(bool,QString,double)),this,SLOT(onStartDataExport(bool,QString,double)));
     connect(ui->wgtClassifiers,SIGNAL(ClassifiersUpdated()),this,SLOT(onUpdateClassifyCombo()));
     onUpdateClassifyCombo(); // update it to start off
 
 
-    iqplayer = new IQDemodPlayer();
-    connect(iqplayer,SIGNAL(PlaybackStarted(IQDemodPlayer *)),this,SLOT(onPlaybackStarted(IQDemodPlayer *)));
-    connect(iqplayer,SIGNAL(PlaybackEnded(IQDemodPlayer *)),this,SLOT(onPlaybackEnded(IQDemodPlayer *)));
-    connect(iqplayer,SIGNAL(DataReady(IQDemodPlayer *)),this,SLOT(onPlaybackDataReady(IQDemodPlayer *)));
+
+    connect(gApp.iqplayer,SIGNAL(PlaybackStarted(IQDemodPlayer *)),this,SLOT(onPlaybackStarted(IQDemodPlayer *)));
+    connect(gApp.iqplayer,SIGNAL(PlaybackEnded(IQDemodPlayer *)),this,SLOT(onPlaybackEnded(IQDemodPlayer *)));
+    connect(gApp.iqplayer,SIGNAL(DataReady(IQDemodPlayer *)),this,SLOT(onPlaybackDataReady(IQDemodPlayer *)));
     SetupAudio();
 
-    connect(m_sigtuner.Marker(),SIGNAL(MarkerChanged(ftmarker*)),this,SLOT(onMarkerTunerChanged(ftmarker*))); // THE DEFAULT MARKER FOR THE TUNER
+    connect(gApp.m_sigtuner.Marker(),SIGNAL(MarkerChanged(ftmarker*)),this,SLOT(onMarkerTunerChanged(ftmarker*))); // THE DEFAULT MARKER FOR THE TUNER
 
     // load the plugins
     LoadPlugins();
@@ -204,7 +171,7 @@ MainWindow::MainWindow(QWidget *parent) :
     //set up markers table
     markertable = ui->wgtMarkerTable;
     markertable->setVisible(showingMarkers);
-    markertable->SetMarkers(&m_markers);
+    markertable->SetMarkers(&gApp.m_markers);
     connect(markertable,SIGNAL(onMarkerSelected(ftmarker*)),this,SLOT(OnMarkerSelectedTable(ftmarker*)));
     connect(markertable,SIGNAL(onMarkerHighlight(ftmarker*)),this,SLOT(onMarkerHighlightTable(ftmarker*)));
     connect(markertable,SIGNAL(onAddMarker()),this,SLOT(onAddMarkerTable()));
@@ -215,36 +182,33 @@ MainWindow::MainWindow(QWidget *parent) :
 
 
     //signals that come from the marker manager
-    connect(&m_markers,SIGNAL(MarkerAdded(ftmarker*)),this,SLOT(onMarkerAdded(ftmarker*)));
-    connect(&m_markers,SIGNAL(MarkerChanged(ftmarker*)),this,SLOT(onMarkerChanged(ftmarker*)));
-    connect(&m_markers,SIGNAL(MarkerRemoved(ftmarker*)),this,SLOT(onMarkerRemoved(ftmarker*)));
+    connect(&gApp.m_markers,SIGNAL(MarkerAdded(ftmarker*)),this,SLOT(onMarkerAdded(ftmarker*)));
+    connect(&gApp.m_markers,SIGNAL(MarkerChanged(ftmarker*)),this,SLOT(onMarkerChanged(ftmarker*)));
+    connect(&gApp.m_markers,SIGNAL(MarkerRemoved(ftmarker*)),this,SLOT(onMarkerRemoved(ftmarker*)));
 
     m_audiopumprunning = false;
-    SetupMapping();
+    ui->wgtMapDoc->setVisible(false);
    // connect(m_ss_scanner,SIGNAL(Completed(bool)),this,SLOT(onSignalScannerCompleted(bool)));
 
 }
 
 void MainWindow::onTimer()
 {
-    if(ipo.valid == false)
+    if(gApp.ipo.valid == false)
         return;
 
-    plotWaterfall->Update(fft_hist,m_builder->GetTopTimestamp()/ 1000000,m_builder->GetBottomTimestamp() / 1000000);
+    plotWaterfall->Update(gApp.fft_hist,gApp.m_builder->GetTopTimestamp()/ 1000000,gApp.m_builder->GetBottomTimestamp() / 1000000);
 
     if(showingFFT == true )
     {        
-        plotFFT->UpdateFFT(fft_hist);
+        plotFFT->UpdateFFT(gApp.fft_hist);
         plotFFT->plot->replot();
     }
     if(showingscope == true)
     {
         UpdateScopePlot();
     }
-   // if(showingconstellation == true)
-   // {
-   //    plotConstellation->UpdatePlot(idata,_periodsamples); // replot
-    //}
+
     UpdatePlaybackTimestamp();
 
     plotWaterfall->plot->replot();
@@ -254,17 +218,17 @@ void MainWindow::UpdatePlaybackTimestamp()
 {
     double currentsample;
 
-    currentsample = m_builder->sampleindex;
+    currentsample = gApp.m_builder->sampleindex;
     if(currentsample < 0)
         return;
 
 
     float seconds = 0;
 
-    if(ipo.valid == false )
+    if(gApp.ipo.valid == false )
         return;
 
-    double sps = ipo.SampleRateHz;
+    double sps = gApp.ipo.SampleRateHz;
 
     seconds = currentsample / sps;
 
@@ -310,7 +274,7 @@ void MainWindow::InitializeScope()
 void MainWindow::InitializeFFT()
 {
     plotFFT = ui->wgtFFT2; // bind the new fft control
-    plotFFT->AddTuner(m_sigtuner.Marker());
+    plotFFT->AddTuner(gApp.m_sigtuner.Marker());
 }
 
 
@@ -319,12 +283,12 @@ MainWindow::~MainWindow()
 
     delete _displaytimer; // to update the screen
     delete ui;
-    delete m_builder;
+    delete gApp.m_builder;
     //delete fft_filter;
-    delete m_indexer;
+    delete gApp.m_indexer;
     if(dlgprg)
         delete dlgprg;
-    delete fft_hist;
+    delete gApp.fft_hist;
     delete frmimport;
     CloseAudio();
 }
@@ -368,30 +332,30 @@ void MainWindow::on_actionLoadFile_triggered()
         {
             printf("exception\r\n");
         }
-        ipo = *frmimport->GetImportOptions(); // get the import options
-        if(ipo.valid == false)
+        gApp.ipo = *frmimport->GetImportOptions(); // get the import options
+        if(gApp.ipo.valid == false)
             return;
 
         _displaytimer->stop();
 
-        fft_hist->Reset(FFT_BIN_SIZE);
-        fft_hist->Set(ipo.CenterFreqHz,ipo.SampleRateHz);
+        gApp.fft_hist->Reset(FFT_BIN_SIZE);
+        gApp.fft_hist->Set(gApp.ipo.CenterFreqHz,gApp.ipo.SampleRateHz);
 
-        m_indexer->StartThreadedBuildIndexTable(&ipo);
+        gApp.m_indexer->StartThreadedBuildIndexTable(&gApp.ipo);
 
          // set up out tuner for tuning into a stream
-         m_sigtuner.Setup(m_indexer,ipo.BandwidthHZ,ipo.CenterFreqHz,ipo.StreamID);
+         gApp.m_sigtuner.Setup(gApp.m_indexer,gApp.ipo.BandwidthHZ,gApp.ipo.CenterFreqHz,gApp.ipo.StreamID);
 
-         QFileInfo qfi(ipo.name.c_str());
+         QFileInfo qfi(gApp.ipo.name.c_str());
          markersfilename = qfi.absolutePath() + "/" + qfi.completeBaseName() + ".mrk";
-         m_markers.Clear();
+         gApp.m_markers.Clear();
 
-         if(m_markers.Load(markersfilename.toLatin1().data()))
+         if(gApp.m_markers.Load(markersfilename.toLatin1().data()))
          {
              //QColor green(0,255,0);
-             for (int c = 0; c < m_markers.m_markers.size(); c++)
+             for (int c = 0; c < gApp.m_markers.m_markers.size(); c++)
              {
-                 ftmarker *ftm = m_markers.m_markers[c];
+                 ftmarker *ftm = gApp.m_markers.m_markers[c];
                  plotWaterfall->AddMarker(ftm);
              }
          }
@@ -419,33 +383,33 @@ void MainWindow::onEndBuildIndex()
         delete dlgprg;
         dlgprg = 0;
     }
-    m_indexer->Open();
+    gApp.m_indexer->Open();
 
-    m_builder->GotoTop();
-    m_builder->Build(true);
+    gApp.m_builder->GotoTop();
+    gApp.m_builder->Build(true);
     _displaytimer->start(40);
 
     UpdateTunerTimeSeriesData();
 
     // set up the waterfall auto-range
-    if(ipo.valid && autowaterrange == true)
+    if(gApp.ipo.valid && autowaterrange == true)
     {
-        waterlow = fft_hist->GetMinDBM();
-        waterhigh = fft_hist->GetMaxDBM();
+        waterlow = gApp.fft_hist->GetMinDBM();
+        waterhigh = gApp.fft_hist->GetMaxDBM();
         ui->sldWaterRange->setValues(waterlow,waterhigh);
     }
 
     //inserted from load
-    double sps = ipo.SampleRateHz / 1000000;//lfi.highF_MHz - lfi.lowF_MHz;
-    double cf = ipo.CenterFreqHz / 1000000;//lfi.lowF_MHz + (sps /2);
+    double sps = gApp.ipo.SampleRateHz / 1000000;//lfi.highF_MHz - lfi.lowF_MHz;
+    double cf = gApp.ipo.CenterFreqHz / 1000000;//lfi.lowF_MHz + (sps /2);
 
-    m_sigtuner.Marker()->setCF_MHz(cf);
-    m_sigtuner.Marker()->setBW_MHz(sps/10);
+    gApp.m_sigtuner.Marker()->setCF_MHz(cf);
+    gApp.m_sigtuner.Marker()->setBW_MHz(sps/10);
 
     UpdateSelInfo();
     //set the graph ranges
-    plotFFT->SetXRange(ipo.minFreqHz /1000000, ipo.maxFreqHz/1000000);//lfi.lowF_MHz,lfi.highF_MHz);
-    plotWaterfall->setXRange(ipo.minFreqHz /1000000, ipo.maxFreqHz/1000000);
+    plotFFT->SetXRange(gApp.ipo.minFreqHz /1000000, gApp.ipo.maxFreqHz/1000000);//lfi.lowF_MHz,lfi.highF_MHz);
+    plotWaterfall->setXRange(gApp.ipo.minFreqHz /1000000, gApp.ipo.maxFreqHz/1000000);
 
 }
 
@@ -458,20 +422,20 @@ void MainWindow::onExportMarker(ftmarker *mrk)
             filters, &defaultFilter);
     if(outfn.length())
     {
-        file_resamp->StartResampling(&qvrt_fileinfo,mrk,ipo.name.c_str(),outfn,ipo.StreamID);
+        gApp.file_resamp->StartResampling(&gApp.qvrt_fileinfo,mrk,gApp.ipo.name.c_str(),outfn,gApp.ipo.StreamID);
     }
 }
 
 
 void  MainWindow::FFTrangeChanged(const QCPRange &newRange)
 {
-    if(ipo.valid == false)
+    if(gApp.ipo.valid == false)
         return;
 
     double rng = newRange.upper - newRange.lower;
-    if(rng > (ipo.maxFreqHz/1000000) - (ipo.minFreqHz/1000000) )
+    if(rng > (gApp.ipo.maxFreqHz/1000000) - (gApp.ipo.minFreqHz/1000000) )
     {
-        plotFFT->SetXRange((ipo.minFreqHz/1000000),(ipo.maxFreqHz/1000000));
+        plotFFT->SetXRange((gApp.ipo.minFreqHz/1000000),(gApp.ipo.maxFreqHz/1000000));
     }
 }
 
@@ -480,28 +444,28 @@ void MainWindow::UpdateSelInfo()
 {
 //update the information at the top of the screen about frequency selection and bandwidth
 
-    QString bandwidth =  "Bandwidth: " + QString::number(ipo.BandwidthHZ/1000000) + " MHz";
+    QString bandwidth =  "Bandwidth: " + QString::number(gApp.ipo.BandwidthHZ/1000000) + " MHz";
     ui->lblBandwidth->setText(bandwidth);
 
-    QString freqrange =  "Range: ( " + QString::number(ipo.minFreqHz/1000000) + " MHz";
-    freqrange += " -> " + QString::number(ipo.maxFreqHz/1000000) + " MHz )";
+    QString freqrange =  "Range: ( " + QString::number(gApp.ipo.minFreqHz/1000000) + " MHz";
+    freqrange += " -> " + QString::number(gApp.ipo.maxFreqHz/1000000) + " MHz )";
     ui->lblFreqRange->setText(freqrange);
    // float sps = lfi.highF_MHz - lfi.lowF_MHz;
 
-    double cf = ipo.CenterFreqHz/1000000;
+    double cf = gApp.ipo.CenterFreqHz/1000000;
     QString centerfreq =  "Center Freq:  " + QString::number(cf,'f',3) + " MHz";
     ui->lblCenterFreq->setText(centerfreq);
 
 
-    QString Gain = "Gain - RF : " + QString::number(ipo.dRFGain,'f',1) + "db"
-            + " , IF : " + QString::number(ipo.dIFGain,'f',1) + "db";
+    QString Gain = "Gain - RF : " + QString::number(gApp.ipo.dRFGain,'f',1) + "db"
+            + " , IF : " + QString::number(gApp.ipo.dIFGain,'f',1) + "db";
     ui->lblGain->setText(Gain);
 
-    QFileInfo fi(ipo.name.c_str());
+    QFileInfo fi(gApp.ipo.name.c_str());
     QString base = fi.baseName();  // base = "archive"
 
     ui->lblName->setText("Name : " + base );//
-    ui->lblDuration->setText("Duration : " + QString::number(ipo.duration_est_seconds));
+    ui->lblDuration->setText("Duration : " + QString::number(gApp.ipo.duration_est_seconds));
 
     UpdateTimeFreqLabels();
     ui->lblPlaybackIndex->setText("Playback Index :" );
@@ -538,7 +502,7 @@ void MainWindow::LoadSettings()
     QSettings* settings = new QSettings(configPath, QSettings::IniFormat);
     int binsize = settings->value("FFT_BIN_SIZE",DEFAULT_BIN_SIZE).toInt();
     Set_FFT_BinSize(binsize);
-    fft_hist->Reset(binsize);
+    gApp.fft_hist->Reset(binsize);
 
     int pos = 0;
     switch(binsize)
@@ -639,11 +603,11 @@ void MainWindow::SaveSettings()
 
 void MainWindow::LoadPlugins()
 {
-    m_plugmgr.loadPlugins(qApp->applicationDirPath() + "/plugins");
+    gApp.m_plugmgr.loadPlugins(qApp->applicationDirPath() + "/plugins");
     ui->cmbTool->clear();
-    for(int c = 0 ; c < m_plugmgr.plugins.length(); c++)
+    for(int c = 0 ; c < gApp.m_plugmgr.plugins.length(); c++)
     {
-        iPluginInterface *iplg = m_plugmgr.plugins[c];
+        iPluginInterface *iplg = gApp.m_plugmgr.plugins[c];
         ui->cmbTool->addItem(iplg->Name());
     }
 }
@@ -660,8 +624,8 @@ void MainWindow::UpdatePluginButtons()
     {
         ui->plgControl->setVisible(true);
         //get the plugin
-        ui->cmdProcess->setVisible((iplgSel->Flags() & PLG_FLAG_TOOL)); // supports the longer running 'Tool' method
-        ui->cmdDecode->setVisible((iplgSel->Flags() & PLG_FLAG_STREAM));// supports the stream 'Process' method
+        ui->cmdProcess->setVisible((gApp.iplgSel->Flags() & PLG_FLAG_TOOL)); // supports the longer running 'Tool' method
+        ui->cmdDecode->setVisible((gApp.iplgSel->Flags() & PLG_FLAG_STREAM));// supports the stream 'Process' method
     }
     */
 }
@@ -669,27 +633,27 @@ void MainWindow::UpdatePluginButtons()
 
 void MainWindow::on_cmdUp_clicked()
 {
-    m_builder->PanFFT(-20 * WaterDir);
+    gApp.m_builder->PanFFT(-20 * WaterDir);
     UpdateTunerTimeSeriesData();
 }
 
 void MainWindow::on_cmdDown_clicked()
 {
-    m_builder->PanFFT(20 * WaterDir);
+    gApp.m_builder->PanFFT(20 * WaterDir);
 
     UpdateTunerTimeSeriesData();
 }
 
 void MainWindow::on_cmdPageup_clicked()
 {
-    m_builder->PanFFT(-256 * WaterDir);
+    gApp.m_builder->PanFFT(-256 * WaterDir);
 
     UpdateTunerTimeSeriesData();
 }
 
 void MainWindow::on_cmdPageDown_clicked()
 {
-    m_builder->PanFFT(256 * WaterDir);
+    gApp.m_builder->PanFFT(256 * WaterDir);
      UpdateTunerTimeSeriesData();
 }
 
@@ -713,7 +677,7 @@ void MainWindow::UpdateTimeFreqLabels()
     ui->lblFFT_TimeRes->setText("FFT Rate : " + QString::number(FFT_UPDATE_RATE) + " Hz" );
 
     double rbw;
-    rbw = ipo.SampleRateHz / (double)(FFT_BIN_SIZE);
+    rbw = gApp.ipo.SampleRateHz / (double)(FFT_BIN_SIZE);
     QString rbwunit = " Hz";
     if(rbw > 1000)
     {
@@ -740,13 +704,13 @@ void MainWindow::on_sldFFTRes_valueChanged(int value)
         case 6:fftsize = 16384;break;
     }
     Set_FFT_BinSize(fftsize); // set the bin size
-    fft_hist->Reset(fftsize);
+    gApp.fft_hist->Reset(fftsize);
 
-    m_builder->SetFFTSize(fftsize);
+    gApp.m_builder->SetFFTSize(fftsize);
 
-    if(ipo.valid)
+    if(gApp.ipo.valid)
     {
-        m_builder->Build(true);
+        gApp.m_builder->Build(true);
     }
 
     UpdateTimeFreqLabels();
@@ -757,9 +721,9 @@ void MainWindow::on_sldFFTTimRes_valueChanged(int value)
     int vals[] = {10,20,40,50,100,250,500,1000,2500,5000,10000,25000,50000,100000,200000,400000,800000};
     Set_FFT_Rate(vals[value]);
     ui->lblFFT_TimeRes->setText("FFT Rate : " + QString::number(vals[value]) + " Hz" );
-    if(ipo.valid)
+    if(gApp.ipo.valid)
     {
-        m_builder->Build(true);
+        gApp.m_builder->Build(true);
     }
     UpdateTimeFreqLabels();
 }
@@ -778,10 +742,10 @@ void MainWindow::on_chkAutoRange_stateChanged(int arg1)
     if(arg1 != 0)
     {
         autowaterrange = true;
-        if(ipo.valid)
+        if(gApp.ipo.valid)
         {
-            waterlow = fft_hist->GetMinDBM();
-            waterhigh = fft_hist->GetMaxDBM();
+            waterlow = gApp.fft_hist->GetMinDBM();
+            waterhigh = gApp.fft_hist->GetMaxDBM();
             ui->sldWaterRange->setValues(waterlow,waterhigh);
             SaveSettings();
 
@@ -804,8 +768,8 @@ void MainWindow::UpdateScopePlot()
 {
 
     complex<float > *samples = (complex<float > *)idata;
-    double tps = 1.0 / ipo.SampleRateHz; // time per sample
-    datarange rng = m_builder->GetTimeRange();
+    double tps = 1.0 / gApp.ipo.SampleRateHz; // time per sample
+    datarange rng = gApp.m_builder->GetTimeRange();
    // double endtime = (_periodsamples * tps * 1000000);// + rng.low;
 
     if(samples != 0)
@@ -825,7 +789,7 @@ it puts data in the global "float *idata" array (probably should be complex<floa
 void MainWindow::UpdateTunerTimeSeriesData()
 {
     // exit if we're not showing time - series or constellation data
-    if(showingscope == false && showingconstellation == false)
+    if(showingscope == false )
         return;
 
     // check to make sure we have enough data storage
@@ -842,12 +806,12 @@ void MainWindow::UpdateTunerTimeSeriesData()
     if(useWindowFilter)
     {
         complex<float> * tmpdat = (complex<float> *)idata;
-        m_sigtuner.setPhase(0);
-        m_sigtuner.Produce(m_builder->sampleindex,_periodsamples,tmpdat);
+        gApp.m_sigtuner.setPhase(0);
+        gApp.m_sigtuner.Produce(gApp.m_builder->sampleindex,_periodsamples,tmpdat);
     }else
     {
         //if there is no filtering, simply put the data into
-        m_indexer->GetSamples(m_builder->sampleindex,_periodsamples,(complex<float> *)idata);
+        gApp.m_indexer->GetSamples(gApp.m_builder->sampleindex,_periodsamples,(complex<float> *)idata);
     }
 }
 
@@ -856,27 +820,27 @@ void MainWindow::UpdateTunerTimeSeriesData()
 void MainWindow::onMarkerChanged(ftmarker *mrk)
 {
     Q_UNUSED(mrk)
-    m_markers.Save(markersfilename.toLatin1().data());
+    gApp.m_markers.Save(markersfilename.toLatin1().data());
 }
 
 void MainWindow::onMarkerAdded(ftmarker *mrk)
 {
     Q_UNUSED(mrk)
-    m_markers.Save(markersfilename.toLatin1().data());
+    gApp.m_markers.Save(markersfilename.toLatin1().data());
 }
 
 void MainWindow::onMarkerRemoved(ftmarker *mrk)
 {
     Q_UNUSED(mrk)
     plotWaterfall->RemoveMarker(mrk);
-    m_markers.Save(markersfilename.toLatin1().data());
+    gApp.m_markers.Save(markersfilename.toLatin1().data());
 }
 
 void MainWindow::onRemoveAllMarkers()
 {
     plotWaterfall->ClearMarkers();
-    m_markers.Clear();
-    m_markers.Save(markersfilename.toLatin1().data());
+    gApp.m_markers.Clear();
+    gApp.m_markers.Save(markersfilename.toLatin1().data());
 }
 
 void MainWindow::onMergeMarkers()
@@ -920,19 +884,19 @@ void MainWindow::onMergeMarkers()
     for(int c= 0; c < selmkrs.size(); c++)
     {
         ftmarker *ftm = selmkrs[c];
-        m_markers.RemoveMarker(ftm);
+        gApp.m_markers.RemoveMarker(ftm);
     }
 
     selmkrs.clear(); // clear the list of selected markers
 
     //add it
-    m_markers.AddMarker(newmark);
+    gApp.m_markers.AddMarker(newmark);
     plotWaterfall->UnselectMarkers(); // unselect all markers
     plotWaterfall->ClearMarkers(); // remove all markers
     // re-add the markers
-    for(int c =0; c< m_markers.m_markers.size(); c++)
+    for(int c =0; c< gApp.m_markers.m_markers.size(); c++)
     {
-        plotWaterfall->AddMarker(m_markers.m_markers[c]);
+        plotWaterfall->AddMarker(gApp.m_markers.m_markers[c]);
     }
 
     markertable->SetSelected(newmark);
@@ -942,7 +906,7 @@ void MainWindow::onPerfomRetroDF(ftmarker *mrk)
 {
     Q_UNUSED(mrk)
     /*
-    if(!m_retrodf.open(ipo.name.c_str()))
+    if(!m_retrodf.open(gApp.ipo.name.c_str()))
         return; // fail silently
     m_retrodf.set_marker(mrk);
     retro_df_results results = m_retrodf.get_results();
@@ -965,14 +929,14 @@ void MainWindow::onSignalScannerCompleted(bool cancelled)
     {
         ftmarker* ftm = markers.at(c);
 
-        m_markers.AddMarker(ftm);
+        gApp.m_markers.AddMarker(ftm);
         //add to waterfall
         plotWaterfall->AddMarker(ftm);
     }
 
     QFileInfo qfi(lfi.input_fname);
     QString mfn = qfi.absolutePath() + "/" + qfi.completeBaseName() + ".mrk";
-    m_markers.Save(mfn.toLatin1().data());
+    gApp.m_markers.Save(mfn.toLatin1().data());
 }
 */
 
@@ -991,7 +955,7 @@ void MainWindow::on_cmbWaterDir_currentIndexChanged(int index)
     }
     SaveSettings();
     plotWaterfall->setWaterfallDirection(WaterfallDirection);
-    m_builder->Build(true);
+    gApp.m_builder->Build(true);
 }
 
 
@@ -1024,9 +988,9 @@ void MainWindow::onStartDataExport(bool all, QString path,double bwhz)
     else
     {
         //add all markers with tags
-        for(int c =0 ; c< m_markers.m_markers.size(); c++)
+        for(int c =0 ; c< gApp.m_markers.m_markers.size(); c++)
         {
-            ftmarker *mrk = m_markers.m_markers.at(c);
+            ftmarker *mrk = gApp.m_markers.m_markers.at(c);
             if(mrk->Tags().length() > 0)
             {
                 m_exportlist.push_front(mrk);
@@ -1041,7 +1005,7 @@ void MainWindow::onStartDataExport(bool all, QString path,double bwhz)
         ftmarker *ftm = m_exportlist[0];
         m_exportlist.remove(0);
         QString markerpath = m_exportpath + ftm->Tags() + "/";
-        data_export->StartExporting(&qvrt_fileinfo,ftm,ipo.name.c_str(),markerpath,ipo.StreamID,m_exportbwhz);
+        gApp.data_export->StartExporting(&gApp.qvrt_fileinfo,ftm,gApp.ipo.name.c_str(),markerpath,gApp.ipo.StreamID,m_exportbwhz);
     }
 }
 
@@ -1075,7 +1039,7 @@ void MainWindow::onEndExport()
         ftmarker *ftm = m_exportlist[0];
         m_exportlist.remove(0);
         QString markerpath = m_exportpath + ftm->Tags() + "/";
-        data_export->StartExporting(&qvrt_fileinfo,ftm,ipo.name.c_str(),markerpath,ipo.StreamID,m_exportbwhz);
+        gApp.data_export->StartExporting(&gApp.qvrt_fileinfo,ftm,gApp.ipo.name.c_str(),markerpath,gApp.ipo.StreamID,m_exportbwhz);
     }
     else // we're done, clean up
     {
@@ -1111,12 +1075,12 @@ void MainWindow::onFileResampEnded()
 void MainWindow::onUpdateClassifyCombo()
 {
     ui->cmbClassifySel->clear();
-    for (int c =0 ; c< m_classifiers.m_list.size(); c++)
+    for (int c =0 ; c< gApp.m_classifiers.m_list.size(); c++)
     {
-        Classifier *cl = m_classifiers.m_list[c];
+        Classifier *cl = gApp.m_classifiers.m_list[c];
         ui->cmbClassifySel->addItem(cl->m_name);
     }
-    if(m_classifiers.m_list.size() > 0)
+    if(gApp.m_classifiers.m_list.size() > 0)
     {
         ui->cmbClassifySel->setCurrentIndex(0);
     }
@@ -1150,13 +1114,13 @@ void MainWindow::onClassificationComplete(ftmarker *ftm, QString msg,QMap<QStrin
 
 void MainWindow::on_cmdUp_Small_clicked()
 {
-    m_builder->PanFFT(-1 * WaterDir);
+    gApp.m_builder->PanFFT(-1 * WaterDir);
     UpdateTunerTimeSeriesData();
 }
 
 void MainWindow::on_cmdDown_Small_clicked()
 {
-    m_builder->PanFFT(1 * WaterDir);
+    gApp.m_builder->PanFFT(1 * WaterDir);
 
     UpdateTunerTimeSeriesData();
 }
@@ -1217,15 +1181,15 @@ void MainWindow::OnMarkerSelectedWaterfall(ftmarker *mrk,bool softsel)
         //save the check state for the window filter
         SaveSettings();
         // set the frequency window
-        m_sigtuner.Marker()->setBW_MHz(mrk->BW_MHz());
-        m_sigtuner.Marker()->setCF_MHz(mrk->CF_MHz());
+        gApp.m_sigtuner.Marker()->setBW_MHz(mrk->BW_MHz());
+        gApp.m_sigtuner.Marker()->setCF_MHz(mrk->CF_MHz());
         //SetupSelection(mrk->CF(),mrk->BW());
         //set up thje default tuner to go to those freq
         //tell the fft builder to go to the markers time index
         double tm = mrk->StartTime_S();
         if(mrk->HasStartTime() == false)
             tm = 0;
-        m_builder->GotoTimeStamp(tm);
+        gApp.m_builder->GotoTimeStamp(tm);
     }
     markertable->SetSelected(mrk);
 }
@@ -1239,13 +1203,13 @@ void MainWindow::OnMarkerSelectedTable(ftmarker *mrk)
     selmkrs.append(mrk);
 
     // the table marker widget selected a marker
-    m_sigtuner.Marker()->setBW_MHz(mrk->BW_MHz());
-    m_sigtuner.Marker()->setCF_MHz(mrk->CF_MHz());
+    gApp.m_sigtuner.Marker()->setBW_MHz(mrk->BW_MHz());
+    gApp.m_sigtuner.Marker()->setCF_MHz(mrk->CF_MHz());
 
     double tm = mrk->StartTime_S();
     if(mrk->HasStartTime() == false)
         tm = 0;
-    m_builder->GotoTimeStamp(tm);
+    gApp.m_builder->GotoTimeStamp(tm);
     ui->chkWindowFilter->setCheckState(Qt::Checked);
     UpdateTunerTimeSeriesData();
 }
@@ -1276,11 +1240,11 @@ void MainWindow::onAddMarkerTable()
     }
     else
     {
-        mark->CopyFrom(m_sigtuner.Marker());
+        mark->CopyFrom(gApp.m_sigtuner.Marker());
         mark->setHasStartTime(false);
         mark->setHasEndTime(false);
     }
-    m_markers.AddMarker(mark);
+    gApp.m_markers.AddMarker(mark);
 
     plotWaterfall->AddMarker(mark);
     plotWaterfall->SetMarkerSelected(mark);
@@ -1293,7 +1257,7 @@ void MainWindow::OnDeleteCurrentMarker()
     if(selmkrs.size() > 0 )
     {
         ftmarker *ftm = selmkrs.at(0);
-        m_markers.RemoveMarker(ftm);
+        gApp.m_markers.RemoveMarker(ftm);
         plotWaterfall->RemoveMarker(ftm);
     }
 }
@@ -1301,7 +1265,7 @@ void MainWindow::OnDeleteCurrentMarker()
 void MainWindow::onMarkerTunerChanged(ftmarker *ftm)
 {
     //maybe call the waterfall to update the marker?
-    if(ftm == m_sigtuner.Marker())
+    if(ftm == gApp.m_sigtuner.Marker())
     {
         refreshingGUI = true;
         //on windowing changed, here, set up the filter to match
@@ -1319,24 +1283,11 @@ void MainWindow::onSetPeriodSamples(int len)
 
 void MainWindow::on_cmdClearMax_clicked()
 {
-    fft_hist->ClearMaxValues();
+    gApp.fft_hist->ClearMaxValues();
 
 }
 
-/*
-void MainWindow::on_chkShowConstellation_clicked()
-{
-    showingconstellation = ui->chkShowConstellation->isChecked();
-    ui->wgtConst->setVisible(showingconstellation);
-    if(ipo.SampleRateHz > 0)
-    {
-        UpdateTunerTimeSeriesData();
-        UpdateScopePlot();
-        plotConstellation->UpdatePlot(idata,_periodsamples);
-    }
-    ui->wgtScope_Const->setVisible(showingscope | showingconstellation);
-}
-*/
+
 ///To get a value from the FFT tracer and display it as text on the GUI
 void MainWindow::OnFreqHighlightFFT(double val)
 {
@@ -1350,7 +1301,7 @@ void MainWindow::OnTimeHighlight(double val)
 
 void MainWindow::OnPanWaterfall(double val)
 {
-     m_builder->PanFFT(val * WaterDir);
+     gApp.m_builder->PanFFT(val * WaterDir);
      UpdateTunerTimeSeriesData();
 }
 
@@ -1374,8 +1325,8 @@ void MainWindow::on_cmbTool_currentIndexChanged(int index)
         }
     }
     // add the new selected plugin config to the layout
-    iplgSel = m_plugmgr.plugins[index];
-    QWidget *wgt = iplgSel->GetConfigGUI();
+    gApp.iplgSel = gApp.m_plugmgr.plugins[index];
+    QWidget *wgt = gApp.iplgSel->GetConfigGUI();
     if(wgt != nullptr) // we have a configuration GUI
     {
         wgt->setParent(ui->wgt_tool_parent);
@@ -1396,12 +1347,12 @@ void MainWindow::on_cmbTool_currentIndexChanged(int index)
 void MainWindow::on_cmdDetect_clicked()
 {
     //feature detector sets the time in uS, not seocnds
-//    QVector <ftmarker *> mrks = feat_detector.DetectFeatures(fft_hist,false, waterlow, waterhigh,eCache,false);
+//    QVector <ftmarker *> mrks = gApp.feat_detector.DetectFeatures(gApp.fft_hist,false, waterlow, waterhigh,eCache,false);
     int thresh = ui->sldDetectSensitivity->value();
 
-    QVector <ftmarker *> mrks = feat_detector.DetectFeatures2(fft_hist,thresh,eCache,false);
+    QVector <ftmarker *> mrks = gApp.feat_detector.DetectFeatures2(gApp.fft_hist,thresh,eCache,false);
 
-    double bts = m_builder->GetTopTimestamp();
+    double bts = gApp.m_builder->GetTopTimestamp();
     bts /= 1000000;
 
     for(int c = 0; c< mrks.size(); c++)
@@ -1411,22 +1362,22 @@ void MainWindow::on_cmdDetect_clicked()
 
         ftm->setStartTime_S(ftm->StartTime_S()/1000000 + bts);
         ftm->setEndTime_S((ftm->EndTime_S()/1000000 + bts));
-        m_markers.AddMarker(ftm);
+        gApp.m_markers.AddMarker(ftm);
         //add to waterfall
         plotWaterfall->AddMarker(ftm);
         //ftm->
     }
-    QFileInfo qfi(ipo.name.c_str());
+    QFileInfo qfi(gApp.ipo.name.c_str());
     QString mfn = qfi.absolutePath() + "/" + qfi.completeBaseName() + ".mrk";
-    m_markers.Save(mfn.toLatin1().data());
+    gApp.m_markers.Save(mfn.toLatin1().data());
 }
 
 void MainWindow::on_cmdDecode_clicked()
 {
     // if there is not file loaded, return
-    if(ipo.valid == false )
+    if(gApp.ipo.valid == false )
         return;
-    if(iqplayer->Running() == false)
+    if(gApp.iqplayer->Running() == false)
     {
         double starttime = -1,endtime = -1;
         if(selmkrs.size() != 0)
@@ -1434,21 +1385,21 @@ void MainWindow::on_cmdDecode_clicked()
             //get the selected marker
             ftmarker *mrk =selmkrs.at(0);
             //set the tuner frequency
-            m_sigtuner.Marker()->setBW_MHz(mrk->BW_MHz());
-            m_sigtuner.Marker()->setCF_MHz(mrk->CF_MHz());
+            gApp.m_sigtuner.Marker()->setBW_MHz(mrk->BW_MHz());
+            gApp.m_sigtuner.Marker()->setCF_MHz(mrk->CF_MHz());
             //get start and end times if set
             if(mrk->HasStartTime())starttime = mrk->StartTime_S();
             if(mrk->HasEndTime())endtime = mrk->EndTime_S();
         }
 
         //get current selected plugin
-        if(iplgSel == nullptr)
+        if(gApp.iplgSel == nullptr)
             return;
 
-        iqplayer->SetDecoder(iplgSel);
-        iqplayer->SetTuner(&m_sigtuner,starttime,endtime);
+        gApp.iqplayer->SetDecoder(gApp.iplgSel);
+        gApp.iqplayer->SetTuner(&gApp.m_sigtuner,starttime,endtime);
 
-        iqplayer->Start();
+        gApp.iqplayer->Start();
         //ui->cmdDemod->setText("Stop Demodulator");
 //        QPixmap image(":/images/stop");
         QPixmap image(":/images/icons/stop");
@@ -1458,7 +1409,7 @@ void MainWindow::on_cmdDecode_clicked()
     {
         QPixmap image(":/images/icons/start");
         ui->cmdDecode->setIcon(QIcon(image));
-        iqplayer->Stop();
+        gApp.iqplayer->Stop();
     }
 }
 
@@ -1490,7 +1441,7 @@ void MainWindow::AudioPumpThread()
 {
     while(m_audiopumprunning)
     {
-        CircBuff<float> *data = iqplayer->GetOutBuff();
+        CircBuff<float> *data = gApp.iqplayer->GetOutBuff();
         static float tbuf[AUDIO_BUFFER_SIZE];
         while(data->size() >= AUDIO_BUFFER_SIZE)
         {
@@ -1508,14 +1459,14 @@ void MainWindow::on_cmdClassify_clicked()
     if(idx == -1)
         return;
     // get the classifier
-    Classifier *cl = m_classifiers.m_list[idx];
+    Classifier *cl = gApp.m_classifiers.m_list[idx];
     //now get the current marker (or list)
     if(selmkrs.size() == 0)
         return;
     ftmarker *ftm = selmkrs.at(0);
 
     ui->lblClsRslt->setText("");
-    if(cl->StartClassify(&qvrt_fileinfo,ftm,ipo.name.c_str(),ipo.StreamID))
+    if(cl->StartClassify(&gApp.qvrt_fileinfo,ftm,gApp.ipo.name.c_str(),gApp.ipo.StreamID))
     {
         connect(cl,SIGNAL(ClassificationComplete(ftmarker*,QString,QMap<QString, float>)),this,SLOT(onClassificationComplete(ftmarker*,QString,QMap<QString, float>)));
     }else
@@ -1525,41 +1476,19 @@ void MainWindow::on_cmdClassify_clicked()
     }
 }
 
-void MainWindow::SetupMapping()
-{
-    ui->wgtMapDoc->setVisible(false);
-    /*
-    mapWidget = ui->wgtMapDoc;
-    // Load the OpenStreetMap map
-    mapWidget->setMapThemeId("earth/openstreetmap/openstreetmap.dgml");
-    mapWidget->setVisible(showMap);
-    mapWidget->centerOn (-77.035965, 38.897832);
-    mapWidget->setZoom(2500);
-
-    cur_location = new GeoDataPlacemark( "Current Location" );
-    cur_location->setCoordinate( -77.08525, 39.05025, 97.0, GeoDataCoordinates::Degree );
-
-    GeoDataDocument *document = new GeoDataDocument;
-    document->append( cur_location );
-
-    // Add the document to MarbleWidget's tree model
-    mapWidget->model()->treeModel()->addDocument( document );
-*/
-}
-
 
 void MainWindow::on_cmdEnergyDetect2_clicked()
 {
     if(m_ss_scanner == nullptr)
     {
         m_ss_scanner = new SignalStreamScanner(this);
-        dlgsigdetector = new dlgSignalDetector(m_ss_scanner,&ipo,this);
+        dlgsigdetector = new dlgSignalDetector(m_ss_scanner,&gApp.ipo,this);
     }
     dlgsigdetector->exec();
 
     QVector<ftmarker *> markers = m_ss_scanner->GetMarkers();
 
-    m_markers.AddMarkers(markers);
+    gApp.m_markers.AddMarkers(markers);
     for(int c = 0; c< markers.size(); c++)
     {
         ftmarker* ftm = markers.at(c);
@@ -1567,16 +1496,11 @@ void MainWindow::on_cmdEnergyDetect2_clicked()
         plotWaterfall->AddMarker(ftm);
     }
 
-    QFileInfo qfi(ipo.name.c_str());
+    QFileInfo qfi(gApp.ipo.name.c_str());
     QString mfn = qfi.absolutePath() + "/" + qfi.completeBaseName() + ".mrk";
-    m_markers.Save(mfn.toLatin1().data());
+    gApp.m_markers.Save(mfn.toLatin1().data());
     //now, add all these markers from the signal stream detector
 
-    /*
-    ss_ftm.setHasEndTime(false);
-    ss_ftm.setHasStartTime(false);
-    m_ss_scanner->StartDetecting(&ss_ftm,qvrt_fileinfo.Name().c_str(),ipo.StreamID,4096,0);
-    */
 }
 
 void MainWindow::on_cmdWorkshop_clicked()
@@ -1596,12 +1520,12 @@ void MainWindow::on_actionscope_triggered()
 {
     //crashing when no data is loaded and scope / constellation is shown.
     showingscope = !showingscope;//ui->chkShowScope->isChecked();
-    if(ipo.SampleRateHz > 0)
+    if(gApp.ipo.SampleRateHz > 0)
     {
         UpdateTunerTimeSeriesData();
         UpdateScopePlot();
     }
-    ui->wgtScope_Const->setVisible(showingscope | showingconstellation);
+    ui->wgtScope_Const->setVisible(showingscope );
 }
 
 

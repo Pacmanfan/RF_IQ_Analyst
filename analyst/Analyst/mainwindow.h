@@ -16,9 +16,6 @@
 #include <wgt_waterfall.h>
 #include <wgt_marker_table.h>
 #include <iqdemodplayer.h>
-//#include <marble/MarbleWidget.h>
-
-//using namespace Marble;
 
 
 namespace Ui {
@@ -35,27 +32,22 @@ public:
     ~MainWindow();
 
     QTimer *_displaytimer; // to update the screen
-
     wgt_Scope * plotScope;
     wgt_FFT   * plotFFT;
     wgt_waterfall *plotWaterfall;
     wgt_marker_table *markertable;
-    //QConstellationPlot * plotConstellation;
     frmImportOptions *frmimport;
-    //MarbleWidget *mapWidget;
 
     void UpdateScopePlot();
     void UpdateTunerTimeSeriesData();
     void InitializeFFT();
     void InitializeScope();
-    //void InitializeConstellation();
+
     void UpdateCursorDotPosition(double xCenterIn);
 
     void UpdateSelInfo();
     void UpdateTimeFreqLabels();
     void UpdatePlaybackTimestamp();
-
-    void SetupMapping();
 
     void LoadSettings();
     void SaveSettings();
