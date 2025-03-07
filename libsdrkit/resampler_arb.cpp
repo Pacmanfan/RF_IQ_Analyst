@@ -77,9 +77,6 @@ void resampler_arb::resample(std::complex<float> *input, std::complex<float> *ou
 {
     while (inuse){} // wait for it to not be in use
     inuse = true;
-    //liquid_float_complex *indat,*outdat;
-    //indat = (liquid_float_complex *)input;
-    //outdat = (liquid_float_complex *)output;
     resamp_crcf_execute_block(resamp, (liquid_float_complex *)input, numsamples_in, (liquid_float_complex *)output, numsamples_out);
     inuse = false;
 }

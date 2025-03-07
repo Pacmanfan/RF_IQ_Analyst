@@ -2,7 +2,6 @@
 #include <QFileInfo>
 #include <sampleindexer.h>
 #include <fft_fftw.h>
-#include <fft_ipp.h>
 #include <feature_detector.h>
 
 extern file_format DetermineFormat(QString filename);
@@ -136,11 +135,9 @@ void SignalStreamScanner::ScanThread()
     CircBuff<complex<float> > *iqdata = new CircBuff<complex<float>>(100000);
 
     m_running = true;
-#ifdef USE_IPP
-    fft_ipp fftcalc;
-#else
+
     fft_fftw fftcalc;
-#endif
+
     float percent = 0;
     int rowcount =0; //to see if we have enough rows to process this yet.
     double rowsamplidx = 0;

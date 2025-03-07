@@ -197,7 +197,6 @@ SOURCES += \
     fft_builder.cpp \
     fft_cuda.cpp \
     fft_fftw.cpp \
-    fft_ipp.cpp \
     iq_32.cpp \
     iq_u8.cpp \
     resampler_polyphase_ipp_ff.cpp \
@@ -207,7 +206,6 @@ SOURCES += \
     qcustomplot.cpp \
     ftmarker.cpp \
     fft_filter.cpp \
-    sdrkit.cpp \
     signaldetector.cpp \
     signalsource.cpp \
     fxpt.cpp \
@@ -238,7 +236,6 @@ HEADERS += libsdrkit.h \
     dsp_utils.h \
     fft_cuda.h \
     fft_fftw.h \
-    fft_ipp.h \
     iq_32.h \
     iq_u8.h \
     resampler_polyphase_ipp_ff.h \
@@ -251,8 +248,6 @@ HEADERS += libsdrkit.h \
     qcustomplot.h \
     ftmarker.h \
     fft_filter.h \
-    sdrkit.h \
-    sdrkit.i \
     signaldetector.h \
     signalsource.h \
     fxpt.h \
